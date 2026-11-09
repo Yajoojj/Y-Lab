@@ -27,8 +27,73 @@ export function mulberry32(seed: number): () => number {
 
 const facing = (ang: number) => Math.cos(ang - Math.PI / 4);
 
+/*
+ * Transparência de oclusão: o que fica entre a câmera e o ponto que ela olha some num pontilhado fino
+ * (o centro da instância é comparado com a linha câmera→alvo no plano do chão).
+ * Os uniforms são compartilhados por todos os materiais da cidade; basta atualizar uma vez por quadro.
+ */
+const occlusion = {
+  uTarget: { value: new THREE.Vector3() },
+  uFadeR: { value: 24 },
+};
+
+const OCC_VERT_PARS = /* glsl */ `
+  varying vec3 vOccCenter;
+  varying float vOccHalf;
+`;
+const OCC_VERT = /* glsl */ `
+  #ifdef USE_INSTANCING
+    vOccCenter = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    vOccHalf = 0.5 * max(length(instanceMatrix[0].xyz), length(instanceMatrix[2].xyz));
+  #else
+    vOccCenter = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    vOccHalf = 1.0;
+  #endif
+`;
+const OCC_FRAG_PARS = /* glsl */ `
+  uniform vec3 uTarget;
+  uniform float uFadeR;
+  varying vec3 vOccCenter;
+  varying float vOccHalf;
+`;
+const OCC_FRAG = /* glsl */ `
+  {
+    vec2 occDir = normalize(cameraPosition.xz - uTarget.xz);
+    vec2 occV = vOccCenter.xz - uTarget.xz;
+    float occAlong = dot(occV, occDir);
+    float occPerp = length(occV - occAlong * occDir) - vOccHalf;
+    float occ = step(0.0, occAlong) * (1.0 - smoothstep(uFadeR, uFadeR + 14.0, occPerp));
+    if (occ > 0.0) {
+      float occN = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+      if (occN < occ * 0.9) discard;
+    }
+  }
+`;
+
+/** aplica a transparência de oclusão num material padrão do three (pilares, pista, antenas) */
+function withOcclusion<T extends THREE.Material>(m: T): T {
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uTarget = occlusion.uTarget;
+    shader.uniforms.uFadeR = occlusion.uFadeR;
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\n" + OCC_VERT_PARS)
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\n" + OCC_VERT);
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\n" + OCC_FRAG_PARS)
+      .replace("#include <clipping_planes_fragment>", "#include <clipping_planes_fragment>\n" + OCC_FRAG);
+  };
+  return m;
+}
+
 // ---------------------------------------------------------------- fachadas
 function facadeMaterial(opts: { lit: number; base: string; detail: number }): THREE.ShaderMaterial {
+  const m = facadeShader(opts);
+  m.uniforms.uTarget = occlusion.uTarget;
+  m.uniforms.uFadeR = occlusion.uFadeR;
+  return m;
+}
+
+function facadeShader(opts: { lit: number; base: string; detail: number }): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     fog: true,
     uniforms: THREE.UniformsUtils.merge([
@@ -47,7 +112,9 @@ function facadeMaterial(opts: { lit: number; base: string; detail: number }): TH
       attribute float aSeed;
       varying vec3 vWorld; varying vec3 vN; varying float vSeed; varying float vTop;
       #include <fog_pars_vertex>
+      ${OCC_VERT_PARS}
       void main(){
+        ${OCC_VERT}
         vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0);
         vWorld = w.xyz; vSeed = aSeed; vTop = position.y;
         vN = normalize(mat3(modelMatrix * instanceMatrix) * normal);
@@ -60,8 +127,10 @@ function facadeMaterial(opts: { lit: number; base: string; detail: number }): TH
       uniform vec3 baseColor; uniform vec3 warm; uniform vec3 cool; uniform vec3 red;
       varying vec3 vWorld; varying vec3 vN; varying float vSeed; varying float vTop;
       #include <fog_pars_fragment>
+      ${OCC_FRAG_PARS}
       float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)) + vSeed * 23.17) * 43758.5453); }
       void main(){
+        ${OCC_FRAG}
         // luz ambiente simples: topo mais claro, faces viradas para a cidade mais quentes
         float sky = clamp(vN.y, 0.0, 1.0);
         vec3 col = baseColor * (0.55 + 0.45 * sky) * (1.0 + dayFactor * 1.1);
@@ -99,7 +168,7 @@ function buildingRing(scene: THREE.Scene, opts: {
   const seeds = new Float32Array(opts.count);
   const extra = opts.setbacks ? new THREE.InstancedMesh(geo, mat, opts.count) : undefined;
   const extraSeeds = new Float32Array(opts.count);
-  const antennas = opts.setbacks ? new THREE.InstancedMesh(new THREE.CylinderGeometry(0.08, 0.12, 1, 5).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: "#1d1c20", metalness: 0.8, roughness: 0.4 }), opts.count) : undefined;
+  const antennas = opts.setbacks ? new THREE.InstancedMesh(new THREE.CylinderGeometry(0.08, 0.12, 1, 5).translate(0, 0.5, 0), withOcclusion(new THREE.MeshStandardMaterial({ color: "#1d1c20", metalness: 0.8, roughness: 0.4 })), opts.count) : undefined;
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const s = new THREE.Vector3();
@@ -246,7 +315,7 @@ function glyphTexture(seed: number, tint: string): THREE.CanvasTexture {
 export function createCity(scene: THREE.Scene): City {
   const mats: THREE.ShaderMaterial[] = [];
   // fundo: silhuetas altas e finas na neblina
-  mats.push(...buildingRing(scene, { count: 130, rMin: 170, rMax: 300, wMin: 8, wMax: 18, hMin: 30, hMax: 170, lit: 0.06, base: "#0b0b0e", detail: 0.6, seed: 11, lowSector: false }).mat);
+  mats.push(...buildingRing(scene, { count: 90, rMin: 170, rMax: 300, wMin: 8, wMax: 18, hMin: 30, hMax: 170, lit: 0.06, base: "#0b0b0e", detail: 0.6, seed: 11, lowSector: false }).mat);
   // meio: blocos simples
   mats.push(...buildingRing(scene, { count: 90, rMin: 95, rMax: 170, wMin: 8, wMax: 16, hMin: 14, hMax: 95, lit: 0.1, base: "#111014", detail: 0.85, seed: 23, lowSector: true }).mat);
   // perto: torres com recuo e antena
@@ -297,9 +366,9 @@ export function createCity(scene: THREE.Scene): City {
   // elevado: anel de pista escura com faróis em duas mãos (some no setor da câmera)
   const deckSegs = 72;
   const deckGeo = new THREE.BoxGeometry(1, 0.5, 3.4);
-  const deck = new THREE.InstancedMesh(deckGeo, new THREE.MeshStandardMaterial({ color: "#121115", roughness: 0.7, metalness: 0.3 }), deckSegs);
+  const deck = new THREE.InstancedMesh(deckGeo, withOcclusion(new THREE.MeshStandardMaterial({ color: "#121115", roughness: 0.7, metalness: 0.3 })), deckSegs);
   const pierGeo = new THREE.BoxGeometry(0.8, 9, 0.8).translate(0, 4.5, 0);
-  const piers = new THREE.InstancedMesh(pierGeo, new THREE.MeshStandardMaterial({ color: "#151418", roughness: 0.8 }), deckSegs);
+  const piers = new THREE.InstancedMesh(pierGeo, withOcclusion(new THREE.MeshStandardMaterial({ color: "#151418", roughness: 0.8 })), deckSegs);
   const q = new THREE.Quaternion();
   const sc = new THREE.Vector3();
   let dn = 0;
@@ -345,6 +414,8 @@ export function createCity(scene: THREE.Scene): City {
     updateWeather(w, t) {
       for (const mt of mats) mt.uniforms.dayFactor.value = w.dayFactor;
       const cam = scene.userData.camera as THREE.OrthographicCamera | undefined;
+      const target = scene.userData.target as THREE.Vector3 | undefined;
+      if (target) occlusion.uTarget.value.copy(target);
       zoomRef = cam ? cam.zoom : zoomRef;
       for (const mt of timed) {
         mt.uniforms.time.value = t * MOTION;

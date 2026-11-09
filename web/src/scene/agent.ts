@@ -17,7 +17,7 @@ const BONE = new THREE.Color("#ede6dc");
 const UP = new THREE.Vector3(0, 1, 0);
 
 // ---------------------------------------------------------------- materiais compartilhados
-const ceramic = new THREE.MeshPhysicalMaterial({ color: "#ffffff", vertexColors: true, roughness: 0.32, metalness: 0, clearcoat: 0.7, clearcoatRoughness: 0.25 });
+const ceramic = new THREE.MeshStandardMaterial({ color: "#ffffff", vertexColors: true, roughness: 0.3, metalness: 0.05 });
 const eyeMat = new THREE.MeshBasicMaterial({ color: BONE.clone().multiplyScalar(2.2), toneMapped: false });
 const amberMat = new THREE.MeshBasicMaterial({ color: AMBER.clone().multiplyScalar(2.2), toneMapped: false, transparent: true, opacity: 0.9 });
 const iceMat = new THREE.MeshBasicMaterial({ color: ICE.clone().multiplyScalar(2.2), toneMapped: false });

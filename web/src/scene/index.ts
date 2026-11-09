@@ -27,10 +27,11 @@ function overviewZoom(h: number): number {
 export function createLabScene(canvas: HTMLCanvasElement, model: ClientModel, light: boolean): LabScene {
   const stage = createStage(canvas);
   stage.scene.userData.camera = stage.camera;
+  stage.scene.userData.target = stage.controls.target;
   const atmosphere = createAtmosphere(stage.scene, stage.renderer);
   attachSynthBatches(stage.scene);
   const city = createCity(stage.scene);
-  const rain = createRain(stage.scene);
+  const rain = createRain(stage.scene, 2500);
   const tower = new Tower(stage.scene);
   const post = createPost(stage.renderer, stage.scene, stage.camera);
   const weather = new WeatherSystem();
@@ -112,6 +113,7 @@ export function createLabScene(canvas: HTMLCanvasElement, model: ClientModel, li
     atmosphere.update(weather.state, dt);
     city.updateWeather(weather.state, t);
     rain.update(t, weather.state.rainIntensity);
+    tower.setView(stage.camera.position, stage.controls.target);
     tower.tick(t);
     for (const v of views.values()) if (v.object.parent) v.tick(dt, t);
 

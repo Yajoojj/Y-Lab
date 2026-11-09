@@ -219,11 +219,15 @@ interface Floor {
   labelMat: THREE.MeshBasicMaterial;
   accentMat: THREE.MeshBasicMaterial;
   pick: THREE.Mesh;
+  label: THREE.Mesh;
 }
 
-type PartGroup = "body" | "front" | "ceiling";
-interface PartDef { geo: THREE.BufferGeometry; mat: THREE.Material; local: THREE.Matrix4[]; group: PartGroup }
-interface Part { mesh: THREE.InstancedMesh; local: THREE.Matrix4[]; group: PartGroup }
+type PartGroup = "body" | "wall" | "ceiling";
+/** lado da planta em que a peça fica; no andar em foco, o lado virado para a câmera some */
+type Side = "px" | "nx" | "pz" | "nz";
+interface PartDef { geo: THREE.BufferGeometry; mat: THREE.Material; local: THREE.Matrix4[]; group: PartGroup; side?: Side }
+interface Part { mesh: THREE.InstancedMesh; local: THREE.Matrix4[]; group: PartGroup; side?: Side }
+const SIDE_NORMAL: Record<Side, [number, number]> = { px: [1, 0], nx: [-1, 0], pz: [0, 1], nz: [0, -1] };
 
 const ZERO4 = new THREE.Matrix4().makeScale(0, 0, 0);
 
@@ -234,11 +238,12 @@ function floorPartDefs(): PartDef[] {
   const T = (x: number, y: number, z: number) => new THREE.Matrix4().makeTranslation(x, y, z);
   const RY = (r: number, x: number, y: number, z: number) => new THREE.Matrix4().makeRotationY(r).setPosition(x, y, z);
   const wy = 0.21 + (FLOOR_H - 0.42) / 2;
-  const mullions: THREE.Matrix4[] = [];
+  const mullX: THREE.Matrix4[] = [];
+  const mullZ: THREE.Matrix4[] = [];
   const nX = 10;
   const nZ = 7;
-  for (let i = 1; i <= nX; i++) mullions.push(T(-HW + (i * FLOOR_W) / (nX + 1), wy, HD + 0.02));
-  for (let i = 1; i <= nZ; i++) mullions.push(RY(Math.PI / 2, HW + 0.02, wy, -HD + (i * FLOOR_D) / (nZ + 1)));
+  for (let i = 1; i <= nX; i++) mullX.push(T(-HW + (i * FLOOR_W) / (nX + 1), wy, HD + 0.02));
+  for (let i = 1; i <= nZ; i++) mullZ.push(RY(Math.PI / 2, HW + 0.02, wy, -HD + (i * FLOOR_D) / (nZ + 1)));
   const tops: THREE.Matrix4[] = [];
   const legs: THREE.Matrix4[] = [];
   const mons: THREE.Matrix4[] = [];
@@ -259,12 +264,13 @@ function floorPartDefs(): PartDef[] {
     { geo: geo.floorTop, mat: mat.floor, local: [T(0, 0.215, 0)], group: "body" },
     { geo: geo.edgeLineX, mat: mat.lightBone, local: [T(0, -0.2, HD + 0.21)], group: "body" },
     { geo: geo.edgeLineZ, mat: mat.lightBone, local: [T(HW + 0.21, -0.2, 0)], group: "body" },
-    { geo: geo.backWall, mat: mat.concrete, local: [T(0, wy, -HD + 0.25)], group: "body" },
-    { geo: geo.sideWall, mat: mat.concrete, local: [T(-HW + 0.25, wy, 0)], group: "body" },
-    { geo: geo.wallWash, mat: mat.lightBoneSoft, local: [T(0, FLOOR_H - 0.45, -HD + 0.52)], group: "body" },
-    { geo: geo.glassX, mat: mat.glass, local: [T(0, wy, HD)], group: "front" },
-    { geo: geo.glassZ, mat: mat.glass, local: [RY(Math.PI / 2, HW, wy, 0)], group: "front" },
-    { geo: geo.mullion, mat: mat.steel, local: mullions, group: "front" },
+    { geo: geo.backWall, mat: mat.concrete, local: [T(0, wy, -HD + 0.25)], group: "wall", side: "nz" },
+    { geo: geo.sideWall, mat: mat.concrete, local: [T(-HW + 0.25, wy, 0)], group: "wall", side: "nx" },
+    { geo: geo.wallWash, mat: mat.lightBoneSoft, local: [T(0, FLOOR_H - 0.45, -HD + 0.52)], group: "wall", side: "nz" },
+    { geo: geo.glassX, mat: mat.glass, local: [T(0, wy, HD)], group: "wall", side: "pz" },
+    { geo: geo.glassZ, mat: mat.glass, local: [RY(Math.PI / 2, HW, wy, 0)], group: "wall", side: "px" },
+    { geo: geo.mullion, mat: mat.steel, local: mullX, group: "wall", side: "pz" },
+    { geo: geo.mullion, mat: mat.steel, local: mullZ, group: "wall", side: "px" },
     { geo: geo.ceilingBar, mat: mat.lightBone, local: [-5, -0.6, 3.8].map((z) => T(-2, FLOOR_H - 0.28, z)), group: "ceiling" },
     { geo: geo.ceilingPanel, mat: mat.ceilingGlow, local: [T(0, FLOOR_H - 0.22, 0)], group: "ceiling" },
     { geo: geo.deskTop, mat: mat.deskTop, local: tops, group: "body" },
@@ -292,6 +298,9 @@ export class Tower {
   readonly root = new THREE.Group();
   private floors = new Map<string, Floor>();
   private parts: Part[] = [];
+  /** lados da planta virados para a câmera (atualizado por setView) */
+  private facing = new Set<Side>(["px", "pz"]);
+  private facingKey = "px,pz";
   private partFloors = 0;
   private shell = new THREE.Group();
   private crown = new THREE.Group();
@@ -367,6 +376,28 @@ export class Tower {
     return !f || f.team.order <= this.visibleUpTo;
   }
 
+  /**
+   * Informa de onde a câmera olha. No andar em foco, paredes e vidros dos lados virados para a câmera
+   * somem, então o interior fica visível de qualquer ângulo.
+   */
+  setView(camera: THREE.Vector3, target: THREE.Vector3): void {
+    const dx = camera.x - target.x;
+    const dz = camera.z - target.z;
+    const len = Math.hypot(dx, dz) || 1;
+    let key = "";
+    for (const side of ["px", "nx", "pz", "nz"] as Side[]) {
+      const [nx, nz] = SIDE_NORMAL[side];
+      if ((nx * dx + nz * dz) / len > 0.2) key += (key ? "," : "") + side;
+    }
+    if (key === this.facingKey) return;
+    this.facingKey = key;
+    this.facing = new Set(key ? (key.split(",") as Side[]) : []);
+    if (this.visibleUpTo !== Infinity) {
+      this.writeParts();
+      for (const f of this.floors.values()) f.label.visible = !(f.team.order === this.focusOrder && this.facing.has("nz"));
+    }
+  }
+
   tick(t: number): void {
     monTex.offset.y = (t * 0.03 * MOTION) % 1;
     // luz de aviação: pulso lento (~0.5 Hz)
@@ -381,7 +412,10 @@ export class Tower {
   // ---------------------------------------------------------------- corte
   private applyCut(): void {
     const cut = this.visibleUpTo !== Infinity;
-    for (const f of this.floors.values()) f.group.visible = f.team.order <= this.visibleUpTo;
+    for (const f of this.floors.values()) {
+      f.group.visible = f.team.order <= this.visibleUpTo;
+      f.label.visible = !(cut && f.team.order === this.focusOrder && this.facing.has("nz"));
+    }
     this.writeParts();
     this.crown.visible = !cut;
     this.shell.visible = !cut;
@@ -399,7 +433,8 @@ export class Tower {
         const o = f.team.order;
         if (o < 0 || o >= this.partFloors) continue; // ordem fora da faixa: ignora em vez de estourar o buffer
         const focused = cut && o === this.focusOrder;
-        const show = o <= this.visibleUpTo && !(focused && p.group !== "body");
+        const hideHere = focused && (p.group === "ceiling" || (p.side !== undefined && this.facing.has(p.side)));
+        const show = o <= this.visibleUpTo && !hideHere;
         const y = BASE_Y + o * FLOOR_H;
         for (let j = 0; j < n; j++) {
           if (show) {
@@ -423,7 +458,7 @@ export class Tower {
       for (let i = 0; i < mesh.count; i++) mesh.setMatrixAt(i, ZERO4);
       mesh.frustumCulled = false;
       this.root.add(mesh);
-      this.parts.push({ mesh, local: d.local, group: d.group });
+      this.parts.push({ mesh, local: d.local, group: d.group, side: d.side });
     }
   }
 
@@ -532,7 +567,7 @@ export class Tower {
     pick.userData.team = team.name;
     g.add(label, accent, pick);
     this.root.add(g);
-    return { team, group: g, labelTex, labelMat, accentMat, pick };
+    return { team, group: g, labelTex, labelMat, accentMat, pick, label };
   }
 
   // ---------------------------------------------------------------- exoesqueleto e coroa

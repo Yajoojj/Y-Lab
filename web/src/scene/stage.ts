@@ -15,6 +15,8 @@ export interface Stage {
   onFrame(fn: (dt: number, t: number) => void): void;
   onResize(fn: (w: number, h: number) => void): void;
   zoomBy(step: number): void;
+  /** marca interação recente: sobe para 60 fps por ~1,5 s */
+  poke(): void;
   /** anima alvo e zoom da câmera */
   flyTo(target: THREE.Vector3, zoom: number, seconds?: number): void;
   /** posiciona a câmera na vista isométrica padrão, sem animação */
@@ -36,7 +38,8 @@ const easeInOutCubic = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2
 export function createStage(canvas: HTMLCanvasElement): Stage {
   if (!hasWebGL(canvas)) throw new Error("webgl");
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance", stencil: false });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // resolução interna limitada: em telas HiDPI o custo cai pela metade e a diferença quase não aparece
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   // o tone mapping fica no pós-processamento (ou é ligado no modo leve)
   renderer.toneMapping = THREE.NoToneMapping;
@@ -84,7 +87,23 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   const prevTarget = new THREE.Vector3();
   const delta = new THREE.Vector3();
   const clock = new THREE.Clock();
-  renderer.setAnimationLoop(() => {
+
+  // limitador de quadros: 30 fps parado, 60 fps enquanto o usuário interage ou a câmera anima.
+  // Sem isso a cena redesenhava na taxa máxima da tela (até 144 Hz) o tempo todo.
+  const IDLE_FPS = 30;
+  const ACTIVE_FPS = 60;
+  let activeUntil = 0;
+  let lastFrame = 0;
+  const poke = () => { activeUntil = performance.now() + 1500; };
+  controls.addEventListener("start", poke);
+  controls.addEventListener("change", poke);
+  canvas.addEventListener("pointermove", poke, { passive: true });
+  canvas.addEventListener("wheel", poke, { passive: true });
+
+  renderer.setAnimationLoop((now: number) => {
+    const fps = fly || now < activeUntil ? ACTIVE_FPS : IDLE_FPS;
+    if (now - lastFrame < 1000 / fps - 2) return;
+    lastFrame = now;
     const dt = Math.min(clock.getDelta(), 0.1);
     const t = clock.elapsedTime;
     if (fly) {
@@ -115,6 +134,7 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
       const z = THREE.MathUtils.clamp(camera.zoom * (step > 0 ? 1.25 : 0.8), controls.minZoom, controls.maxZoom);
       fly = { from: controls.target.clone(), to: controls.target.clone(), z0: camera.zoom, z1: z, t: 0, dur: 0.25 };
     },
+    poke,
     flyTo(target, zoom, seconds = 0.6) {
       fly = { from: controls.target.clone(), to: target.clone(), z0: camera.zoom, z1: THREE.MathUtils.clamp(zoom, controls.minZoom, controls.maxZoom), t: 0, dur: seconds };
     },

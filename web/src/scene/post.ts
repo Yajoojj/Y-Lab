@@ -6,7 +6,6 @@ import {
   HueSaturationEffect,
   NoiseEffect,
   RenderPass,
-  SMAAEffect,
   ToneMappingEffect,
   ToneMappingMode,
   VignetteEffect,
@@ -30,16 +29,15 @@ export function createPost(renderer: THREE.WebGLRenderer, scene: THREE.Scene, ca
   const composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType, multisampling: 0 });
   composer.addPass(new RenderPass(scene, camera));
 
-  const bloom = new BloomEffect({ intensity: 0.85, luminanceThreshold: 0.95, luminanceSmoothing: 0.25, mipmapBlur: true, radius: 0.72 });
+  // bloom em meia resolução e com menos níveis: quase igual visualmente, bem mais barato
+  const bloom = new BloomEffect({ intensity: 0.85, luminanceThreshold: 0.95, luminanceSmoothing: 0.25, mipmapBlur: true, radius: 0.72, levels: 5, resolutionScale: 0.5 });
   const tone = new ToneMappingEffect({ mode: ToneMappingMode.AGX });
   const grade = new HueSaturationEffect({ saturation: -0.08 });
   const vignette = new VignetteEffect({ darkness: 0.42, offset: 0.38 });
   const noise = new NoiseEffect({ premultiply: true, blendFunction: BlendFunction.SCREEN });
   noise.blendMode.opacity.value = 0.018;
-  const smaa = new SMAAEffect();
 
   composer.addPass(new EffectPass(camera, bloom, tone, grade, vignette, noise));
-  composer.addPass(new EffectPass(camera, smaa));
 
   let enabled = true;
   renderer.toneMappingExposure = 1.5;

@@ -2,7 +2,7 @@
    --yellow = destaque principal (vermelho), --cyan = linha/realce (carmesim claro), etc. */
 :root {
   --bg: #060507;
-  --panel: rgba(10, 6, 8, 0.78);
+  --panel: rgba(10, 6, 8, 0.9); /* fundo sólido: desfoque sobre o canvas animado custava caro */
   --panel-solid: #0e0809;
   --line: rgba(255, 31, 51, 0.24);
   --text: #ede6dc;
@@ -62,8 +62,6 @@ html, body {
 
 .panel {
   background: var(--panel);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--line);
   clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
   position: relative;

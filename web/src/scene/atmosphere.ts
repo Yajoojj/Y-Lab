@@ -113,14 +113,7 @@ export function createAtmosphere(scene: THREE.Scene, renderer: THREE.WebGLRender
   const fill = new THREE.HemisphereLight("#2a3242", "#3b2219", 1.3);
   const rim = new THREE.DirectionalLight("#ff1f33", 0.15);
   rim.position.set(-80, 20, -90);
-  // banho de luz quente subindo pelas fachadas da frente (iluminação arquitetônica)
-  const wash1 = new THREE.SpotLight("#ffd9b0", 900, 120, 0.42, 0.7, 2);
-  wash1.position.set(40, 1, 34);
-  wash1.target.position.set(4, 34, 4);
-  const wash2 = new THREE.SpotLight("#ffd9b0", 650, 120, 0.42, 0.7, 2);
-  wash2.position.set(-30, 1, 44);
-  wash2.target.position.set(-2, 30, 6);
-  scene.add(key, fill, rim, wash1, wash1.target, wash2, wash2.target);
+  scene.add(key, fill, rim);
 
   const tmp = new THREE.Color();
   let day = 0;

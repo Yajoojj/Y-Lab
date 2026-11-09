@@ -50,6 +50,8 @@ export function mountTopbar(root: HTMLElement, model: ClientModel, actions?: Hud
       actions.setLight(next);
       light.setAttribute("aria-pressed", String(next));
     };
+    // o modo leve pode ser ligado sozinho (máquina lenta): mantém o botão em sincronia
+    window.addEventListener("ylab:light", (e) => light.setAttribute("aria-pressed", String((e as CustomEvent<boolean>).detail)));
     tools.append(minus, plus, light);
     bar.append(tools);
   }
