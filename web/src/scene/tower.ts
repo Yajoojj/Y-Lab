@@ -170,7 +170,7 @@ export class Tower {
     this.root.add(podiumStrip2);
 
     this.signMat = new THREE.MeshBasicMaterial({
-      map: textTexture("Y-LAB", "#ff1f33", "ARASAKA DIVISION · OPERATIONS", 560),
+      map: textTexture("Y-LAB", "#ff1f33", "RESEARCH · OPERATIONS", 560),
       color: new THREE.Color(2.4, 2.4, 2.4), transparent: true, toneMapped: false, depthWrite: false,
     });
   }
