@@ -1,21 +1,29 @@
+/* Paleta corporativa vermelho/preto. Os nomes antigos (--yellow, --cyan...) viraram papéis:
+   --yellow = destaque principal (vermelho), --cyan = linha/realce (carmesim claro), etc. */
 :root {
-  --bg: #05060b;
-  --panel: rgba(7, 9, 18, 0.74);
-  --panel-solid: #0a0d1a;
-  --line: rgba(0, 240, 255, 0.22);
-  --text: #e8f6ff;
-  --muted: #7f8ba8;
-  --yellow: #fcee0a;
-  --cyan: #00f0ff;
-  --magenta: #ff2a6d;
-  --violet: #9d4edd;
-  --green: #39ff88;
-  --orange: #ff8a00;
-  --s-working: var(--cyan);
-  --s-waiting_user: var(--yellow);
-  --s-error: var(--magenta);
-  --s-idle: #5b6380;
-  --s-done: var(--green);
+  --bg: #060507;
+  --panel: rgba(10, 6, 8, 0.78);
+  --panel-solid: #0e0809;
+  --line: rgba(255, 31, 51, 0.24);
+  --text: #ede6dc;
+  --muted: #8a8088;
+  --red: #ff1f33;
+  --crimson: #c3001b;
+  --bone: #ede6dc;
+  --steel: #9aa0ab;
+  --amber: #ffb547;
+  --ice: #4de8ff;
+  --yellow: var(--red);
+  --cyan: #ff4d5e;
+  --magenta: var(--crimson);
+  --violet: var(--steel);
+  --green: var(--bone);
+  --orange: #ff8a3d;
+  --s-working: var(--red);
+  --s-waiting_user: var(--amber);
+  --s-error: var(--ice);
+  --s-idle: #5a5560;
+  --s-done: var(--bone);
   --cut: 10px;
   --font-title: "Rajdhani", "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
@@ -72,13 +80,13 @@ html, body {
 .title .count { color: var(--accent, var(--yellow)); font-family: var(--font-mono); letter-spacing: 0; }
 
 button {
-  font: inherit; color: var(--text); background: rgba(0, 240, 255, .06);
+  font: inherit; color: var(--text); background: rgba(255, 31, 51, .06);
   border: 1px solid var(--line); padding: 4px 10px; cursor: pointer;
   clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
 }
-button:hover { background: rgba(0, 240, 255, .16); border-color: var(--cyan); }
+button:hover { background: rgba(255, 31, 51, .16); border-color: var(--cyan); }
 button:focus-visible { outline: 1px solid var(--yellow); outline-offset: 2px; }
-button[aria-pressed="true"] { background: rgba(252, 238, 10, .16); border-color: var(--yellow); color: var(--yellow); }
+button[aria-pressed="true"] { background: rgba(255, 31, 51, .2); border-color: var(--yellow); color: var(--yellow); }
 
 .dot { width: 7px; height: 7px; display: inline-block; flex: none; background: var(--c, var(--s-idle)); box-shadow: 0 0 6px var(--c, transparent); }
 .st-working { --c: var(--s-working); }
@@ -93,7 +101,7 @@ button[aria-pressed="true"] { background: rgba(252, 238, 10, .16); border-color:
 .brand { display: flex; align-items: center; gap: 12px; padding: 8px 14px; }
 .brand .logo {
   font-family: var(--font-title); font-weight: 700; font-size: 22px; letter-spacing: .18em; color: var(--yellow);
-  text-shadow: 0 0 12px rgba(252,238,10,.55), 2px 0 0 rgba(255,42,109,.6), -2px 0 0 rgba(0,240,255,.5);
+  text-shadow: 0 0 14px rgba(255,31,51,.6), 2px 0 0 rgba(195,0,27,.7), -2px 0 0 rgba(77,232,255,.35);
 }
 .brand .live { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 .brand .live .dot { --c: var(--green); animation: blink 1.6s steps(2) infinite; }
@@ -117,8 +125,8 @@ button[aria-pressed="true"] { background: rgba(252, 238, 10, .16); border-color:
 .empty { color: var(--muted); font-style: italic; }
 
 .row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border: 1px solid transparent; cursor: pointer; min-width: 0; }
-.row:hover { border-color: var(--line); background: rgba(0,240,255,.05); }
-.row.active { border-color: var(--accent, var(--yellow)); background: rgba(252,238,10,.06); }
+.row:hover { border-color: var(--line); background: rgba(255,31,51,.05); }
+.row.active { border-color: var(--accent, var(--yellow)); background: rgba(255,31,51,.08); }
 .row .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .sub { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
 .row .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -127,7 +135,7 @@ button[aria-pressed="true"] { background: rgba(252, 238, 10, .16); border-color:
 .dots { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 3px; }
 .dots .dot { width: 5px; height: 5px; }
 
-.waiting .row { border-color: rgba(252,238,10,.35); background: rgba(252,238,10,.05); }
+.waiting .row { border-color: rgba(255,181,71,.35); background: rgba(255,181,71,.05); }
 
 /* ---------- cartão direito ---------- */
 .card { padding: 14px; }
@@ -136,7 +144,7 @@ button[aria-pressed="true"] { background: rgba(252, 238, 10, .16); border-color:
 .card-head .badge { margin-left: auto; }
 .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border: 1px solid var(--c, var(--line)); color: var(--c, var(--text)); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .big { font-family: var(--font-title); font-size: 34px; font-weight: 700; color: var(--accent, var(--cyan)); line-height: 1; margin: 10px 0 2px; }
-.step { margin: 10px 0; padding: 10px; border-left: 2px solid var(--accent, var(--cyan)); background: rgba(0,240,255,.05); line-height: 1.5; word-break: break-word; }
+.step { margin: 10px 0; padding: 10px; border-left: 2px solid var(--accent, var(--cyan)); background: rgba(255,31,51,.05); line-height: 1.5; word-break: break-word; }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0; }
 .stat { border: 1px solid var(--line); padding: 8px; }
 .stat b { display: block; font-family: var(--font-title); font-size: 18px; color: var(--text); }

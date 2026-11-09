@@ -62,6 +62,16 @@ function projectLabel(dirName: string, cwd?: string): string {
   return dirName.split("-").filter(Boolean).pop() ?? dirName;
 }
 
+/** Sobe pelas pastas-mãe de `cwd` até achar a que o Claude Code usou para nomear `dirName`. */
+function projectRoot(cwd: string, dirName: string): string | undefined {
+  const parts = cwd.split(/[\\/]+/);
+  for (let n = parts.length; n > 0; n--) {
+    const candidate = parts.slice(0, n).join("/");
+    if (projectDirName(candidate) === dirName) return candidate;
+  }
+  return undefined;
+}
+
 function listDir(dir: string): string[] {
   try { return fs.readdirSync(dir); } catch { return []; }
 }
@@ -78,7 +88,7 @@ export function collectClaudeSessions(opts: ClaudeSessionsOptions): AgentPatch[]
       if (m === undefined || opts.now - m > maxAgeMs) continue;
       const sid = f.slice(0, -".jsonl".length);
       const s = summarize(readTail(file));
-      const cwd = s.cwds.find((c) => projectDirName(c) === dirName) ?? s.cwds.at(-1);
+      const cwd = s.cwds.map((c) => projectRoot(c, dirName)).find(Boolean) ?? s.cwds.at(-1);
       const label = projectLabel(dirName, cwd);
       const team = opts.teamFor?.(dirName) ?? label;
       const id = `claude:${sid}`;

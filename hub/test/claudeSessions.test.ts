@@ -66,6 +66,13 @@ describe("collectClaudeSessions", () => {
     expect(collectClaudeSessions(opts(root))[0]).toMatchObject({ team: "demo", link: "D:/proj/demo" });
   });
 
+  it("walks up from a subfolder cwd to the project folder", () => {
+    const root = makeProjects();
+    const rec = (cwd: string) => JSON.stringify({ type: "assistant", cwd, message: { content: [{ type: "tool_use", name: "Read", input: { file_path: "a" } }] } }) + "\n";
+    writeSession(root, "D--proj-demo", "s1", rec("D:\\proj\\demo\\web\\src"), 5_000);
+    expect(collectClaudeSessions(opts(root))[0]).toMatchObject({ team: "demo", name: "demo #s1" });
+  });
+
   it("lets teamFor override the team", () => {
     const root = makeProjects();
     writeSession(root, "D--proj-demo", "s1", assistantTool("Read", { file_path: "a" }), 5_000);

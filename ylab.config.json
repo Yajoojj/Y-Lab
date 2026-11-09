@@ -1,6 +1,6 @@
 {
   "port": 7077,
-  "sessionsMaxAgeH": 6,
+  "sessionsMaxAgeH": 1,
   "k9": {
     "path": "C:/Users/yaoku/OneDrive/Área de Trabalho/Programação/k9-cast/.claude/worktrees/threejs-webgl-plugin-install-3da5df/.worktrees/programa/.superpowers/orquestrador"
   }

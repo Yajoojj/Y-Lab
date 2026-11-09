@@ -1,16 +1,19 @@
 import { SHAPES, type Accessory, type Look, type Shape } from "./types";
 
-export const NEON = {
-  yellow: "#FCEE0A",
-  cyan: "#00F0FF",
-  magenta: "#FF2A6D",
-  violet: "#9D4EDD",
-  green: "#39FF88",
-  orange: "#FF8A00",
-  bg: "#05060B",
+/** Paleta corporativa vermelho/preto (inspirada na estética Arasaka; sem nome ou logo). */
+export const CORP = {
+  red: "#FF1F33",
+  crimson: "#C3001B",
+  scarlet: "#FF4D3D",
+  bone: "#EDE6DC",
+  steel: "#9AA0AB",
+  ember: "#FF8A3D",
+  amber: "#FFB547",
+  ice: "#4DE8FF",
+  bg: "#060507",
 } as const;
 
-export const PALETTE: string[] = [NEON.yellow, NEON.cyan, NEON.magenta, NEON.violet, NEON.green, NEON.orange];
+export const PALETTE: string[] = [CORP.red, CORP.crimson, CORP.scarlet, CORP.bone, CORP.steel, CORP.ember];
 
 const ROLE_LOOK: Record<string, [Shape, Accessory]> = {
   lider: ["rounded_cube", "none"],
