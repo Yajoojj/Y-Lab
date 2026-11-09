@@ -73,6 +73,16 @@ describe("server", () => {
     expect(store.state().agents["bot:A"].step).toBe("você");
   });
 
+  it("rejects POST from foreign browser origins (CSRF)", async () => {
+    const { port, store } = await start();
+    const body = JSON.stringify({ bot: "Evil", status: "working", step: "x" });
+    const evil = await raw(port, { method: "POST", path: "/api/events", headers: { Host: `127.0.0.1:${port}`, Origin: "https://evil.example", "content-type": "text/plain" }, body });
+    expect(evil.status).toBe(403);
+    expect(store.state().agents["bot:Evil"]).toBeUndefined();
+    const ok = await raw(port, { method: "POST", path: "/api/events", headers: { Host: `127.0.0.1:${port}`, Origin: "http://127.0.0.1:5173" }, body });
+    expect(ok.status).toBe(204);
+  });
+
   it("rejects foreign Host headers (DNS rebinding)", async () => {
     const { port } = await start();
     expect((await raw(port, { path: "/api/state", headers: { Host: `evil.com:${port}` } })).status).toBe(403);

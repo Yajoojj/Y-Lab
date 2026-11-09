@@ -1,6 +1,6 @@
 import type { ClientModel } from "../model";
 import type { Agent } from "../../../hub/src/types";
-import { ago, dot, h, hhmm, STATUS_LABEL } from "./dom";
+import { activate, ago, dot, h, hhmm, keepFocus, STATUS_LABEL } from "./dom";
 
 const STATUS_VAR: Record<Agent["status"], string> = {
   working: "var(--s-working)",
@@ -25,7 +25,7 @@ function inspector(model: ClientModel, a: Agent): HTMLElement {
   av.style.setProperty("--c", a.look.color);
   const titles = h("div");
   titles.append(h("h2", "", a.name), h("div", "sub", `${a.team} · ${a.role ?? a.source}`));
-  const close = h("button", "", "×", { "aria-label": "Fechar" });
+  const close = h("button", "", "×", { "aria-label": "Fechar", "data-key": "close" });
   close.onclick = () => model.select(undefined);
   head.append(av, titles, close);
 
@@ -64,12 +64,11 @@ function teamCard(model: ClientModel, team?: string): HTMLElement {
   const order: Record<Agent["status"], number> = { waiting_user: 0, error: 1, working: 2, idle: 3, done: 4 };
   const shown = [...agents].sort((a, b) => order[a.status] - order[b.status] || b.updatedAt.localeCompare(a.updatedAt)).slice(0, team ? 40 : 14);
   for (const a of shown) {
-    const row = h("div", "row", undefined, { role: "button", tabindex: "0" });
+    const row = h("div", "row", undefined, { role: "button", tabindex: "0", "data-key": `card:${a.id}` });
     const grow = h("div", "grow");
     grow.append(h("span", "name", a.name), h("span", "sub", a.step || STATUS_LABEL[a.status]));
     row.append(dot(a.status), grow);
-    row.onclick = () => { model.setFocus(a.team); model.select(a.id); };
-    row.onkeydown = (e) => { if (e.key === "Enter") row.click(); };
+    activate(row, () => { model.setFocus(a.team); model.select(a.id); });
     list.append(row);
   }
   if (!shown.length) list.append(h("div", "empty", "Nenhum agente"));
@@ -84,6 +83,6 @@ export function mountRight(root: HTMLElement, model: ClientModel): void {
     const sel = model.selected ? model.state.agents[model.selected] : undefined;
     col.replaceChildren(sel ? inspector(model, sel) : teamCard(model, model.focusTeam));
   };
-  model.on((c) => { if (c.has("agents") || c.has("focus") || c.has("teams")) render(); });
+  model.on((c) => { if (c.has("agents") || c.has("focus") || c.has("teams")) keepFocus(col, render); });
   render();
 }

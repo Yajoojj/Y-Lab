@@ -69,7 +69,7 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
       side: THREE.BackSide,
       depthWrite: false,
       fog: false,
-      uniforms: { top: { value: new THREE.Color("#060507") }, horizon: { value: new THREE.Color("#3a0b4a") }, glow: { value: new THREE.Color("#ff2a6d") } },
+      uniforms: { top: { value: new THREE.Color("#060507") }, horizon: { value: new THREE.Color("#2a0408") }, glow: { value: new THREE.Color("#ff1f33") } },
       vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
       fragmentShader: `uniform vec3 top; uniform vec3 horizon; uniform vec3 glow; varying vec3 vP;
         void main(){ float h = clamp(vP.y, -0.2, 1.0);

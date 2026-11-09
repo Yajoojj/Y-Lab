@@ -1,17 +1,15 @@
 import type { ClientModel } from "../model";
 import type { Agent } from "../../../hub/src/types";
-import { ago, dot, h, section } from "./dom";
+import { activate, ago, dot, h, keepFocus, section } from "./dom";
 
-function agentRow(model: ClientModel, a: Agent, sub: string, meta?: string): HTMLElement {
-  const row = h("div", "row", undefined, { role: "button", tabindex: "0" });
+function agentRow(model: ClientModel, a: Agent, sub: string, meta: string | undefined, keyPrefix: string): HTMLElement {
+  const row = h("div", "row", undefined, { role: "button", tabindex: "0", "data-key": `${keyPrefix}:${a.id}` });
   if (model.selected === a.id) row.classList.add("active");
   const grow = h("div", "grow");
   grow.append(h("span", "name", a.name), h("span", "sub", sub));
   row.append(dot(a.status), grow);
   if (meta) row.append(h("span", "meta", meta));
-  const pick = () => { model.setFocus(a.team); model.select(a.id); };
-  row.onclick = pick;
-  row.onkeydown = (e) => { if (e.key === "Enter") pick(); };
+  activate(row, () => { model.setFocus(a.team); model.select(a.id); });
   return row;
 }
 
@@ -33,7 +31,7 @@ export function mountLeft(root: HTMLElement, model: ClientModel): void {
     const agents = model.agents();
     for (const t of teams) {
       const members = agents.filter((a) => a.team === t.name);
-      const row = h("div", "row", undefined, { role: "button", tabindex: "0" });
+      const row = h("div", "row", undefined, { role: "button", tabindex: "0", "data-key": `floor:${t.name}` });
       row.style.setProperty("--fc", t.color);
       row.style.setProperty("--accent", t.color);
       if (model.focusTeam === t.name) row.classList.add("active");
@@ -42,9 +40,7 @@ export function mountLeft(root: HTMLElement, model: ClientModel): void {
       for (const m of members.slice(0, 24)) dots.append(dot(m.status));
       grow.append(h("span", "name", t.name), dots);
       row.append(h("span", "floor-num", String(t.order + 1)), grow, h("span", "meta", String(members.length)));
-      const toggle = () => { model.select(undefined); model.setFocus(model.focusTeam === t.name ? undefined : t.name); };
-      row.onclick = toggle;
-      row.onkeydown = (e) => { if (e.key === "Enter") toggle(); };
+      activate(row, () => { model.select(undefined); model.setFocus(model.focusTeam === t.name ? undefined : t.name); });
       floors.body.append(row);
     }
   };
@@ -52,13 +48,13 @@ export function mountLeft(root: HTMLElement, model: ClientModel): void {
   const renderWaiting = () => {
     const list = model.waiting();
     waiting.count.textContent = String(list.length);
-    waiting.body.replaceChildren(...(list.length ? list.map((a) => agentRow(model, a, a.step || "precisa de você", ago(a.updatedAt))) : [h("div", "empty", "Ninguém esperando")]));
+    waiting.body.replaceChildren(...(list.length ? list.map((a) => agentRow(model, a, a.step || "precisa de você", ago(a.updatedAt), "waiting")) : [h("div", "empty", "Ninguém esperando")]));
   };
 
   const renderFinished = () => {
     const list = model.state.finished;
     finished.count.textContent = String(list.length);
-    finished.body.replaceChildren(...(list.length ? list.map((a) => agentRow(model, a, a.step || "concluído", ago(a.updatedAt))) : [h("div", "empty", "Nada concluído ainda")]));
+    finished.body.replaceChildren(...(list.length ? list.map((a) => agentRow(model, a, a.step || "concluído", ago(a.updatedAt), "finished")) : [h("div", "empty", "Nada concluído ainda")]));
   };
 
   const renderRoutines = () => {
@@ -77,9 +73,9 @@ export function mountLeft(root: HTMLElement, model: ClientModel): void {
   };
 
   model.on((c) => {
-    if (c.has("teams") || c.has("agents") || c.has("focus")) renderFloors();
-    if (c.has("agents") || c.has("focus")) renderWaiting();
-    if (c.has("finished") || c.has("focus")) renderFinished();
+    if (c.has("teams") || c.has("agents") || c.has("focus")) keepFocus(floors.body, renderFloors);
+    if (c.has("agents") || c.has("focus")) keepFocus(waiting.body, renderWaiting);
+    if (c.has("finished") || c.has("focus")) keepFocus(finished.body, renderFinished);
     if (c.has("routines")) renderRoutines();
   });
   renderFloors(); renderWaiting(); renderFinished(); renderRoutines();

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { deriveLook, teamColor } from "./look";
 import type { EventInput } from "./schema";
-import { LIMITS, type ActivityItem, type Agent, type AgentPatch, type Delta, type LabState, type Routine, type Team, type Usage } from "./types";
+import { LIMITS, STATUSES, type ActivityItem, type Agent, type AgentPatch, type Delta, type LabState, type Routine, type Team, type Usage } from "./types";
 
 export interface StoreOptions {
   file?: string;
@@ -32,6 +32,8 @@ export class Store {
   private finishedList: Agent[] = [];
   /** done já varridos: ignorados até voltarem com outro status */
   private swept = new Set<string>();
+  /** última vez que cada agente apareceu num patch (mesmo sem mudança) */
+  private seenAt = new Map<string, number>();
   private listeners = new Set<Listener>();
   private readonly now: () => number;
   private readonly file?: string;
@@ -77,6 +79,7 @@ export class Store {
     const newActivity: ActivityItem[] = [];
     let finishedChanged = false;
     const at = this.iso();
+    let httpCount = Object.values(this.agents).filter((a) => a.source === "http").length;
 
     for (const p of patches) {
       if (this.swept.has(p.id)) {
@@ -84,6 +87,11 @@ export class Store {
         this.swept.delete(p.id);
       }
       const prev = this.agents[p.id];
+      if (!prev && (p.source ?? "http") === "http") {
+        if (httpCount >= LIMITS.maxHttpAgents) continue;
+        httpCount++;
+      }
+      this.seenAt.set(p.id, this.now());
       const { action, ...fields } = p;
       const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)) as Partial<Agent>;
       const next: Agent = prev
@@ -169,10 +177,20 @@ export class Store {
 
   sweep(): void {
     const now = this.now();
+    const stale: AgentPatch[] = [];
+    for (const a of Object.values(this.agents)) {
+      if (a.status === "done") continue;
+      const seen = this.seenAt.get(a.id) ?? Date.parse(a.updatedAt);
+      if (now - seen <= LIMITS.staleMs) continue;
+      if (a.source !== "http") stale.push({ id: a.id, status: "done" });
+      else if (a.status === "working" || a.status === "error") stale.push({ id: a.id, status: "idle" });
+    }
+    if (stale.length) this.applyPatches(stale);
     const removed: Record<string, null> = {};
     for (const a of Object.values(this.agents)) {
       if (a.status === "done" && now - Date.parse(a.updatedAt) > LIMITS.removeDoneAfterMs) {
         delete this.agents[a.id];
+        this.seenAt.delete(a.id);
         this.swept.add(a.id);
         removed[a.id] = null;
       }
@@ -197,6 +215,9 @@ export class Store {
     try {
       const s = JSON.parse(fs.readFileSync(this.file, "utf-8")) as Partial<LabState>;
       if (!s || typeof s !== "object" || typeof s.agents !== "object" || s.agents === null) throw new Error("estado inválido");
+      for (const [id, a] of Object.entries(s.agents)) {
+        if (!a || typeof a !== "object" || a.id !== id || !STATUSES.includes(a.status) || !Array.isArray(a.history) || !a.look) throw new Error("agente inválido");
+      }
       this.agents = s.agents;
       this.routines = s.routines ?? [];
       this.usage = s.usage;

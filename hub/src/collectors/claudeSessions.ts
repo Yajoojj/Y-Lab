@@ -18,7 +18,7 @@ interface Entry {
   message?: { content?: unknown };
 }
 
-interface Summary { step: string; lastIsError: boolean; cwds: string[] }
+interface Summary { step: string; lastIsError: boolean; cwds: string[]; empty: boolean }
 
 function summarize(records: unknown[]): Summary {
   let step = "";
@@ -34,14 +34,14 @@ function summarize(records: unknown[]): Summary {
         step = describeTool(String(c.name ?? ""), (c.input as Record<string, unknown>) ?? {});
         lastIsError = false;
       } else if (r.type === "assistant" && c.type === "text" && String(c.text ?? "").trim()) {
-        step = String(c.text).replace(/\s+/g, " ").trim();
+        step = "respondendo"; // nunca o texto em si: pode conter segredos ou conteúdo de arquivo
         lastIsError = false;
       } else if (c.type === "tool_result") {
         lastIsError = c.is_error === true;
       }
     }
   }
-  return { step: step.slice(0, LIMITS.step), lastIsError, cwds };
+  return { step: step.slice(0, LIMITS.step), lastIsError, cwds, empty: records.length === 0 };
 }
 
 function statusFor(ageMs: number, lastIsError: boolean): Status {
@@ -72,6 +72,8 @@ function projectRoot(cwd: string, dirName: string): string | undefined {
   return undefined;
 }
 
+const knownCwd = new Map<string, string>();
+
 function listDir(dir: string): string[] {
   try { return fs.readdirSync(dir); } catch { return []; }
 }
@@ -88,7 +90,9 @@ export function collectClaudeSessions(opts: ClaudeSessionsOptions): AgentPatch[]
       if (m === undefined || opts.now - m > maxAgeMs) continue;
       const sid = f.slice(0, -".jsonl".length);
       const s = summarize(readTail(file));
-      const cwd = s.cwds.map((c) => projectRoot(c, dirName)).find(Boolean) ?? s.cwds.at(-1);
+      // um registro gigante pode não caber na janela de leitura: usa o último cwd conhecido
+      const cwd = s.cwds.map((c) => projectRoot(c, dirName)).find(Boolean) ?? s.cwds.at(-1) ?? knownCwd.get(file);
+      if (cwd) knownCwd.set(file, cwd);
       const label = projectLabel(dirName, cwd);
       const team = opts.teamFor?.(dirName) ?? label;
       const id = `claude:${sid}`;
@@ -99,7 +103,7 @@ export function collectClaudeSessions(opts: ClaudeSessionsOptions): AgentPatch[]
         source: "claude",
         role: "lider",
         status: statusFor(opts.now - m, s.lastIsError),
-        step: s.step,
+        step: s.empty ? undefined : s.step,
         action: s.step || undefined,
         link: cwd,
       });

@@ -118,6 +118,33 @@ describe("Store.sweep", () => {
     expect(store.state().agents.s.status).toBe("working");
   });
 
+  it("expires silent claude/k9 agents as done and silent http workers as idle", () => {
+    const { store, advance } = setup();
+    store.applyPatches([
+      { id: "claude:s", source: "claude", status: "working", step: "x" },
+      { id: "k9:l", source: "k9", status: "waiting_user", step: "x" },
+      { id: "bot:W", source: "http", status: "working", step: "x" },
+      { id: "bot:Q", source: "http", status: "waiting_user", step: "x" },
+    ]);
+    advance(20 * 60_000);
+    store.applyPatches([{ id: "claude:keep", source: "claude", status: "idle" }]);
+    advance(11 * 60_000);
+    store.applyPatches([{ id: "claude:keep", source: "claude", status: "idle" }]); // mesmo patch: ainda visto
+    store.sweep();
+    const s = store.state().agents;
+    expect(s["claude:s"].status).toBe("done");
+    expect(s["k9:l"].status).toBe("done");
+    expect(s["bot:W"].status).toBe("idle");
+    expect(s["bot:Q"].status).toBe("waiting_user");
+    expect(s["claude:keep"].status).toBe("idle");
+  });
+
+  it("caps the number of http bots", () => {
+    const { store } = setup();
+    store.applyEvent({ kind: "roster", roster: Array.from({ length: 600 }, (_, i) => `b${i}`) });
+    expect(Object.keys(store.state().agents).length).toBe(500);
+  });
+
   it("keeps at most 20 finished, newest first", () => {
     const { store, advance } = setup();
     for (let i = 0; i < 25; i++) { store.applyPatches([{ id: `b${i}`, source: "http", status: "done" }]); advance(1000); }

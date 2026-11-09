@@ -46,7 +46,7 @@ html, body {
 #scene-fallback {
   position: fixed; inset: 0; display: grid; place-items: center;
   color: var(--muted); font-family: var(--font-title); font-size: 20px; letter-spacing: .08em;
-  background: radial-gradient(ellipse at 50% 30%, #1d0b2b, var(--bg) 70%);
+  background: radial-gradient(ellipse at 50% 30%, #2a0408, var(--bg) 70%);
 }
 #scene-fallback[hidden] { display: none; }
 

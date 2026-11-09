@@ -95,9 +95,9 @@ Outras rotas:
 
 ## Segurança
 
-- O hub escuta só em `127.0.0.1` e recusa requisições com `Host` de outro domínio (proteção contra DNS rebinding). O CORS só libera o front local.
+- O hub escuta só em `127.0.0.1` e recusa requisições com `Host` de outro domínio (proteção contra DNS rebinding). O CORS só libera o front local, e um `POST` vindo de outro site (com `Origin` diferente) é recusado, o que impede que uma página aberta no navegador injete bots falsos. São aceitos no máximo 500 bots via HTTP.
 - **Não exponha a porta 7077** (port forwarding, túnel, `0.0.0.0`). Os status dos seus agentes ficam visíveis para quem acessar.
-- Os coletores só **leem** `~/.claude/projects` e a pasta do K9. Do que os agentes fazem, mostram só uma frase curta (por exemplo, "editando app.ts"), nunca comandos completos nem o conteúdo de arquivos.
+- Os coletores só **leem** `~/.claude/projects` e a pasta do K9. Do que os agentes fazem, mostram só uma frase curta (por exemplo, "editando app.ts"), nunca comandos completos, o texto das respostas nem o conteúdo de arquivos.
 - Não use painéis "grátis" que pedem para seus bots gravarem regras na memória compartilhada e enviarem status, links de chat e uso para tópicos públicos (como ntfy.sh) ou páginas de terceiros. O Y-Lab faz o mesmo localmente.
 
 ## Testes

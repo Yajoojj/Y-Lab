@@ -66,4 +66,7 @@ export const LIMITS = {
   activeMs: 150_000,
   doneAfterMs: 30 * 60_000,
   removeDoneAfterMs: 30 * 60_000,
+  /** sem notícia por esse tempo: claude/k9 viram done; http working/error viram idle */
+  staleMs: 30 * 60_000,
+  maxHttpAgents: 500,
 } as const;

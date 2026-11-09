@@ -30,6 +30,17 @@ describe("Store persistence", () => {
     expect(fs.readdirSync(dir).some((f) => /^state\.corrupt-.*\.json$/.test(f))).toBe(true);
   });
 
+  it("rejects valid JSON with the wrong shape without keeping it in memory", () => {
+    const dir = tmp();
+    const file = path.join(dir, "state.json");
+    fs.writeFileSync(file, '{"agents":{"x":null}}');
+    const s = new Store({ file });
+    s.load();
+    expect(s.state().agents).toEqual({});
+    expect(() => s.sweep()).not.toThrow();
+    expect(fs.existsSync(file)).toBe(false);
+  });
+
   it("does nothing when the file is missing", () => {
     const s = new Store({ file: path.join(tmp(), "nope", "state.json") });
     expect(() => s.load()).not.toThrow();

@@ -9,7 +9,7 @@ describe("deriveLook", () => {
     expect(deriveLook("x", "revisor").shape).toBe("sphere");
     expect(deriveLook("x", "implementador")).toMatchObject({ shape: "pill", accessory: "antenna" });
   });
-  it("picks colors from the neon palette", () => {
+  it("picks colors from the red/black corporate palette", () => {
     for (const id of ["a", "b", "c", "claude:123", "bot:Z"]) expect(PALETTE).toContain(deriveLook(id).color);
     expect(PALETTE).toContain(teamColor("Ops"));
   });

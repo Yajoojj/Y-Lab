@@ -73,6 +73,27 @@ describe("collectClaudeSessions", () => {
     expect(collectClaudeSessions(opts(root))[0]).toMatchObject({ team: "demo", name: "demo #s1" });
   });
 
+  it("never exposes raw assistant text", () => {
+    const root = makeProjects();
+    const text = JSON.stringify({ type: "assistant", cwd: "D:/proj/demo", message: { content: [{ type: "text", text: "Your key is sk-live-123" }] } }) + "\n";
+    writeSession(root, "D--proj-demo", "s1", text, 5_000);
+    const [p] = collectClaudeSessions(opts(root));
+    expect(p.step).toBe("respondendo");
+    expect(JSON.stringify(p)).not.toContain("sk-live");
+  });
+
+  it("keeps team and step when the read window holds no complete line", () => {
+    const root = makeProjects();
+    const f = writeSession(root, "D--proj-demo", "big", assistantTool("Edit", { file_path: "x.ts" }), 5_000);
+    expect(collectClaudeSessions(opts(root))[0].team).toBe("demo");
+    fs.appendFileSync(f, JSON.stringify({ type: "user", blob: "z".repeat(300_000) }) + "\n");
+    const t = (NOW - 5_000) / 1000;
+    fs.utimesSync(f, t, t);
+    const [p] = collectClaudeSessions(opts(root));
+    expect(p.team).toBe("demo");
+    expect(p.step).toBeUndefined();
+  });
+
   it("lets teamFor override the team", () => {
     const root = makeProjects();
     writeSession(root, "D--proj-demo", "s1", assistantTool("Read", { file_path: "a" }), 5_000);

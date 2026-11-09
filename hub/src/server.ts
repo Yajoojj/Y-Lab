@@ -108,6 +108,8 @@ export function createServer(store: Store, opts: ServerOptions): http.Server {
       }
 
       if (req.method === "POST" && url.pathname === "/api/events") {
+        // navegadores sempre mandam Origin em POST de outro site (mesmo "no-cors"): bloqueia CSRF
+        if (origin && !origins.includes(origin)) return send(res, 403, { error: "origem não permitida" });
         if (!tokenOk(req, opts.token)) return send(res, 401, { error: "token inválido" });
         const raw = await readBody(req);
         if (raw === null) return send(res, 413, { error: "corpo maior que 64 KB" });

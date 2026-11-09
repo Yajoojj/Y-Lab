@@ -64,3 +64,24 @@ export function section(key: string, title: string, accent?: string): { root: HT
   head.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
   return { root, body, count };
 }
+
+/** Liga clique, Enter e Espaço num elemento com role="button". */
+export function activate(el: HTMLElement, fn: () => void): void {
+  el.onclick = fn;
+  el.onkeydown = (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      fn();
+    }
+  };
+}
+
+/** Re-renderiza um container sem perder o foco do teclado (pelo data-key do elemento focado). */
+export function keepFocus(container: HTMLElement, render: () => void): void {
+  const active = document.activeElement as HTMLElement | null;
+  const key = active && container.contains(active) ? active.dataset.key : undefined;
+  render();
+  if (!key) return;
+  const again = [...container.querySelectorAll<HTMLElement>("[data-key]")].find((el) => el.dataset.key === key);
+  again?.focus();
+}
