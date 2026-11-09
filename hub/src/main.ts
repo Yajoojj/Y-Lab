@@ -46,7 +46,13 @@ function tick(): void {
   store.sweep();
 }
 
-const server = createServer(store, { port: config.port, token: config.token, health: () => ({ ok: true, collectors: health }) });
+const webPort = Number(process.env.YLAB_WEB_PORT) || 5173;
+const server = createServer(store, {
+  port: config.port,
+  token: config.token,
+  health: () => ({ ok: true, collectors: health }),
+  allowedOrigins: [`http://127.0.0.1:${webPort}`, `http://localhost:${webPort}`],
+});
 
 tick();
 setInterval(tick, 3_000);

@@ -25,6 +25,15 @@ describe("loadConfig", () => {
     expect(c).toMatchObject({ port: 8000, token: "abc", sessionsMaxAgeH: 2, k9: { path: "C:/k9" } });
   });
 
+  it("lets YLAB_PORT override the port", () => {
+    process.env.YLAB_PORT = "7078";
+    try {
+      expect(loadConfig(write({ port: 8000 })).port).toBe(7078);
+    } finally {
+      delete process.env.YLAB_PORT;
+    }
+  });
+
   it("uses defaults when the file is missing", () => {
     expect(loadConfig(path.join(os.tmpdir(), "missing-ylab.json")).port).toBe(7077);
   });

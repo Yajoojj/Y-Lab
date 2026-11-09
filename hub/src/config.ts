@@ -15,7 +15,7 @@ export function loadConfig(file: string): Config {
   try { raw = JSON.parse(fs.readFileSync(file, "utf-8")); } catch { /* sem arquivo: padrões */ }
   const k9 = raw.k9 as { path?: unknown } | undefined;
   return {
-    port: typeof raw.port === "number" ? raw.port : 7077,
+    port: Number(process.env.YLAB_PORT) || (typeof raw.port === "number" ? raw.port : 7077),
     token: typeof raw.token === "string" && raw.token ? raw.token : undefined,
     sessionsMaxAgeH: typeof raw.sessionsMaxAgeH === "number" ? raw.sessionsMaxAgeH : 6,
     claudeProjectsDir: typeof raw.claudeProjectsDir === "string" ? raw.claudeProjectsDir : path.join(os.homedir(), ".claude", "projects"),
