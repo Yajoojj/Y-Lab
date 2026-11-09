@@ -23,7 +23,7 @@ Abra <http://127.0.0.1:5173>.
 
 ## Como usar a torre
 
-- Cada **andar** é uma equipe: uma trilha do K9, o projeto de uma sessão do Claude Code ou o grupo definido por `groups`.
+- Cada **andar** é uma equipe: uma trilha da empresa, o projeto de uma sessão do Claude Code ou o grupo definido por `groups`.
 - Clique num andar (na cena ou na lista **Andares**) para ver o corte da torre naquele andar. Clique num agente para abrir o painel de detalhes. `Esc` volta à visão geral.
 - **Modo leve** desliga os efeitos (bloom, scanlines e chuva) em máquinas mais fracas.
 
