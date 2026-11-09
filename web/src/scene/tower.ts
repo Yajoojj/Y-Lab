@@ -64,24 +64,26 @@ function monitorTexture(): THREE.CanvasTexture {
 const monTex = monitorTexture();
 const monitorMat = new THREE.MeshBasicMaterial({ map: monTex, color: new THREE.Color(1.6, 1.6, 1.6), toneMapped: false, side: THREE.DoubleSide });
 
-function textTexture(text: string, color: string, sub?: string): THREE.CanvasTexture {
+function textTexture(text: string, color: string, sub?: string, width = 1024): THREE.CanvasTexture {
+  const center = width !== 1024;
   const c = document.createElement("canvas");
-  c.width = 1024;
+  c.width = width;
   c.height = 160;
   const g = c.getContext("2d")!;
   g.clearRect(0, 0, c.width, c.height);
-  g.font = "700 92px Rajdhani, 'Segoe UI', sans-serif";
+  g.font = "700 104px Rajdhani, 'Segoe UI', sans-serif";
   g.textBaseline = "middle";
   g.fillStyle = color;
   g.shadowColor = color;
   g.shadowBlur = 18;
-  g.fillText(text, 16, 70);
+  if (center) g.textAlign = "center";
+  g.fillText(text, center ? width / 2 : 16, 70);
   if (sub) {
     g.font = "600 34px 'JetBrains Mono', monospace";
     g.shadowBlur = 0;
     g.fillStyle = "#ede6dc";
     g.globalAlpha = 0.7;
-    g.fillText(sub, 18, 134);
+    g.fillText(sub, center ? width / 2 : 18, 134);
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -127,7 +129,7 @@ export class Tower {
     podiumStrip.position.y = 0.9;
     this.root.add(podiumStrip);
 
-    this.signMat = new THREE.MeshBasicMaterial({ map: textTexture("Y-LAB", "#ff1f33", "RESEARCH · OPERATIONS"), transparent: true, toneMapped: false, depthWrite: false });
+    this.signMat = new THREE.MeshBasicMaterial({ map: textTexture("Y-LAB", "#ff1f33", "RESEARCH · OPERATIONS", 560), color: new THREE.Color(2.4, 2.4, 2.4), transparent: true, toneMapped: false, depthWrite: false });
   }
 
   height(): number {
@@ -303,6 +305,8 @@ export class Tower {
     crown.position.y = top + 3.1;
     const crownStrip = new THREE.Mesh(new THREE.BoxGeometry(FLOOR_W * 0.6 + 0.1, 0.18, FLOOR_D * 0.6 + 0.1), mat.strip);
     crownStrip.position.y = top + 5.2;
+    const crownBase = crownStrip.clone();
+    crownBase.position.y = top + 0.75;
     const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.3, 14, 8), mat.mullion);
     spire.position.y = top + 12.6;
     const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), mat.strip);
@@ -310,12 +314,12 @@ export class Tower {
     beacon.userData.beacon = true;
 
     // letreiro voltado para a câmera (faces +z e +x)
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(14, 2.2), this.signMat);
-    sign.position.set(-1, top + 3.1, (FLOOR_D * 0.6) / 2 + 0.05);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(15, 4.3), this.signMat);
+    sign.position.set(0, top + 3.0, (FLOOR_D * 0.6) / 2 + 0.05);
     const sign2 = sign.clone();
     sign2.rotation.y = Math.PI / 2;
-    sign2.position.set((FLOOR_W * 0.6) / 2 + 0.05, top + 3.1, 1);
-    this.crown.add(roof, crown, crownStrip, spire, beacon, sign, sign2);
+    sign2.position.set((FLOOR_W * 0.6) / 2 + 0.05, top + 3.0, 0);
+    this.crown.add(roof, crown, crownStrip, crownBase, spire, beacon, sign, sign2);
   }
 
   private disposeFloor(f: Floor): void {

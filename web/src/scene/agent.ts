@@ -166,6 +166,11 @@ export class AgentView {
     this.apply(agent);
   }
 
+  /** malha usada no raycast */
+  get pickTarget(): THREE.Object3D {
+    return this.body;
+  }
+
   get id(): string {
     return this.agent.id;
   }

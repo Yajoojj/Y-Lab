@@ -2,6 +2,7 @@ import { ClientModel } from "./model";
 import { connect } from "./net/stream";
 import { mountHud, type HudActions } from "./hud";
 import { createLabScene, type LabScene } from "./scene";
+import { createPicking } from "./scene/picking";
 
 const LIGHT_KEY = "ylab.light";
 function readLight(): boolean {
@@ -30,6 +31,7 @@ const actions: HudActions | undefined = lab && {
 };
 
 const hud = mountHud(document.getElementById("hud")!, model, actions);
+if (lab) createPicking(lab.stage, lab.tower, lab.views, model, hud.hoverLabel);
 connect("/api/stream", model, (online) => hud.setOnline(online));
 
 window.addEventListener("keydown", (e) => {
