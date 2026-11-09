@@ -1,225 +1,17 @@
 import * as THREE from "three";
+import { MOTION } from "./motion";
 import type { WeatherState } from "./weather";
 
-/**
- * Arasaka-inspired procedural city: instanced buildings with holographic windows,
- * neon signage bands, atmospheric fog, and weather-reactive lighting.
- * Single draw call for all buildings via InstancedMesh + custom shader.
+/*
+ * Megacidade noturna em três camadas de profundidade:
+ * perto (torres com recuos e antenas), meio (blocos simples) e fundo (silhuetas na neblina).
+ * Janelas sóbrias: poucas acesas, quase todas em branco osso quente, nada de confete colorido.
+ * Movimento ambiente discreto: faróis no elevado, tráfego aéreo, postes com volume de luz.
+ * O setor entre a câmera isométrica (+x,+z) e a torre fica baixo e livre.
  */
-export function createCity(scene: THREE.Scene, count = 160): {
-  mesh: THREE.InstancedMesh;
-  ground: THREE.Mesh;
-  grid: THREE.GridHelper;
+
+export interface City {
   updateWeather(w: WeatherState, t: number): void;
-} {
-  const geo = new THREE.BoxGeometry(1, 1, 1);
-  geo.translate(0, 0.5, 0);
-  const seeds = new Float32Array(count);
-  const heights = new Float32Array(count);
-
-  // Arasaka palette: deep crimson, bone white, steel blue, ember orange
-  const mat = new THREE.ShaderMaterial({
-    uniforms: {
-      fogColor: { value: new THREE.Color("#060507") },
-      fogDensity: { value: 0.0022 },
-      time: { value: 0 },
-      rainIntensity: { value: 0 },
-      dayFactor: { value: 1 },
-      cloudFactor: { value: 0.2 },
-      // Arasaka corp colors
-      cBone: { value: new THREE.Color("#EDE6DC") },
-      cCrimson: { value: new THREE.Color("#FF1F33") },
-      cEmber: { value: new THREE.Color("#FF8A3D") },
-      cSteel: { value: new THREE.Color("#4DE8FF") },
-      cDark: { value: new THREE.Color("#0a0608") },
-    },
-    vertexShader: /* glsl */ `
-      attribute float aSeed;
-      attribute float aHeight;
-      varying vec3 vWorld;
-      varying vec3 vN;
-      varying float vSeed;
-      varying float vTop;
-      varying float vHeight;
-      void main(){
-        vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0);
-        vWorld = w.xyz;
-        vSeed = aSeed;
-        vHeight = aHeight;
-        vN = normalize(mat3(modelMatrix * instanceMatrix) * normal);
-        vTop = position.y;
-        gl_Position = projectionMatrix * viewMatrix * w;
-      }`,
-    fragmentShader: /* glsl */ `
-      uniform vec3 fogColor;
-      uniform float fogDensity;
-      uniform float time;
-      uniform float rainIntensity;
-      uniform float dayFactor;
-      uniform float cloudFactor;
-      uniform vec3 cBone;
-      uniform vec3 cCrimson;
-      uniform vec3 cEmber;
-      uniform vec3 cSteel;
-      uniform vec3 cDark;
-
-      varying vec3 vWorld;
-      varying vec3 vN;
-      varying float vSeed;
-      varying float vTop;
-      varying float vHeight;
-
-      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)) + vSeed * 17.0) * 43758.5453); }
-      float hash2(vec2 p){ return fract(sin(dot(p, vec2(269.5, 183.3)) + vSeed * 31.0) * 43758.5453); }
-
-      void main(){
-        // Base building color: dark concrete with subtle variation
-        vec3 base = cDark + vec3(0.02, 0.01, 0.015) * (1.0 - vTop);
-        // Wetness from rain: darker, more reflective base
-        base *= 1.0 - rainIntensity * 0.3;
-
-        vec3 col = base;
-
-        // Side faces: windows and architectural details
-        if (abs(vN.y) < 0.5) {
-          float u = abs(vN.x) > 0.5 ? vWorld.z : vWorld.x;
-
-          // Window grid - Arasaka style: tall narrow windows
-          vec2 g = vec2(u / 1.1, vWorld.y / 1.4);
-          vec2 cell = floor(g);
-          vec2 f = fract(g);
-          float win = step(0.18, f.x) * step(f.x, 0.82) * step(0.22, f.y) * step(f.y, 0.88);
-
-          float r = hash(cell);
-          float r2 = hash2(cell);
-
-          // Window lighting: more lit at night, flickering some
-          float nightBoost = 1.0 - dayFactor * 0.6;
-          float lit = step(0.65 - nightBoost * 0.2, r) * (0.7 + 0.3 * sin(time * 0.3 + r * 30.0));
-
-          // Window color variety: bone white, crimson accent, steel blue tech
-          vec3 wc;
-          if (r > 0.94) wc = cCrimson * 1.4;       // Arasaka red accent
-          else if (r > 0.88) wc = cSteel * 1.2;    // Tech blue
-          else if (r > 0.82) wc = cEmber;           // Warm amber
-          else wc = mix(cBone, vec3(1.0, 0.92, 0.85), 0.3); // Warm white
-
-          // Rain makes windows glow more (reflections)
-          float rainGlow = rainIntensity * 0.4;
-          col += wc * win * lit * (0.8 + rainGlow);
-
-          // Horizontal neon band every ~15 floors on taller buildings
-          float bandY = mod(vWorld.y, 15.0);
-          float band = step(14.6, bandY) * step(20.0, vHeight);
-          float bandColor = vSeed > 0.6 ? cCrimson.r : cSteel.r;
-          vec3 bandCol = vSeed > 0.6 ? cCrimson : cSteel;
-          col += bandCol * band * (1.2 + 0.4 * sin(time * 1.5 + vSeed * 10.0));
-
-          // Vertical edge strips on corners (Arasaka corporate aesthetic)
-          float edgeX = step(0.96, abs(f.x));
-          float edgeStrip = edgeX * step(0.5, vSeed) * step(30.0, vHeight);
-          col += cCrimson * edgeStrip * 0.6 * (0.8 + 0.2 * sin(time * 2.0 + vWorld.y * 0.1));
-
-          // Holographic advertisement panels on some tall buildings
-          float adPanel = step(0.92, vSeed) * step(40.0, vHeight) *
-                          step(0.3, vTop) * step(vTop, 0.7) *
-                          step(0.3, f.x) * step(f.x, 0.7);
-          float adFlicker = 0.6 + 0.4 * sin(time * 3.0 + vSeed * 50.0);
-          vec3 adCol = mix(cCrimson, cSteel, sin(time * 0.5 + vSeed * 20.0) * 0.5 + 0.5);
-          col += adCol * adPanel * adFlicker * 1.5;
-        }
-
-        // Rooftop details
-        if (vTop > 0.98) {
-          // Antenna lights on tall buildings
-          float antenna = step(50.0, vHeight) * step(0.99, vTop);
-          float blink = step(0.5, sin(time * 4.0 + vSeed * 20.0));
-          col += cCrimson * antenna * blink * 2.0;
-
-          // Helipad markers on very tall buildings
-          float helipad = step(80.0, vHeight) * step(0.995, vTop);
-          float ring = smoothstep(0.3, 0.35, length(fract(vWorld.xz * 0.15) - 0.5));
-          col += cSteel * helipad * ring * 0.8;
-        }
-
-        // Atmospheric fog - weather reactive
-        float d = length(vWorld - cameraPosition);
-        float effectiveFog = fogDensity * (1.0 + rainIntensity * 2.0 + cloudFactor * 0.5);
-        float fog = 1.0 - exp(-effectiveFog * effectiveFog * d * d);
-
-        // Fog color shifts with weather/time
-        vec3 weatherFog = mix(fogColor, cDark * 1.5, cloudFactor * 0.3);
-        weatherFog = mix(weatherFog, vec3(0.08, 0.04, 0.06), rainIntensity * 0.4);
-
-        gl_FragColor = vec4(mix(col, weatherFog, clamp(fog, 0.0, 1.0)), 1.0);
-      }`,
-  });
-
-  const mesh = new THREE.InstancedMesh(geo, mat, count);
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const rnd = mulberry32(7);
-
-  for (let i = 0; i < count; i++) {
-    const ang = rnd() * Math.PI * 2;
-    const r = 42 + rnd() * 140;
-    const w = 5 + rnd() * 14;
-    const d = 5 + rnd() * 14;
-
-    // Keep corridor toward camera clear for tower visibility
-    const facing = Math.cos(ang - Math.PI / 4);
-    const maxH = facing > 0.35 ? 8 + (1 - facing) * 20 : 130;
-    const h = 10 + Math.pow(rnd(), 1.5) * maxH;
-
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.round(rnd() * 4) * (Math.PI / 2));
-    m.compose(
-      new THREE.Vector3(Math.cos(ang) * r, -2, Math.sin(ang) * r),
-      q,
-      new THREE.Vector3(w, h, d),
-    );
-    mesh.setMatrixAt(i, m);
-    seeds[i] = rnd();
-    heights[i] = h;
-  }
-
-  geo.setAttribute("aSeed", new THREE.InstancedBufferAttribute(seeds, 1));
-  geo.setAttribute("aHeight", new THREE.InstancedBufferAttribute(heights, 1));
-  mesh.frustumCulled = false;
-  scene.add(mesh);
-
-  // Ground: wet asphalt with Arasaka-red grid lines
-  const groundMat = new THREE.MeshStandardMaterial({
-    color: "#080506",
-    roughness: 0.25,
-    metalness: 0.7,
-  });
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), groundMat);
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -2;
-  scene.add(ground);
-
-  // Grid: crimson primary, dark secondary
-  const grid = new THREE.GridHelper(280, 56, "#ff1f33", "#1a0810");
-  grid.position.y = -1.98;
-  (grid.material as THREE.Material).transparent = true;
-  (grid.material as THREE.Material).opacity = 0.3;
-  scene.add(grid);
-
-  function updateWeather(w: WeatherState, t: number): void {
-    mat.uniforms.time.value = t;
-    mat.uniforms.rainIntensity.value = w.rainIntensity;
-    mat.uniforms.dayFactor.value = w.dayFactor;
-    mat.uniforms.cloudFactor.value = w.cloudFactor;
-
-    // Wet ground when raining
-    groundMat.roughness = 0.25 - w.rainIntensity * 0.15;
-    groundMat.metalness = 0.7 + w.rainIntensity * 0.2;
-
-    // Grid fades in rain (water washes out markings)
-    (grid.material as THREE.Material).opacity = 0.3 - w.rainIntensity * 0.15;
-  }
-
-  return { mesh, ground, grid, updateWeather };
 }
 
 export function mulberry32(seed: number): () => number {
@@ -230,5 +22,334 @@ export function mulberry32(seed: number): () => number {
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const facing = (ang: number) => Math.cos(ang - Math.PI / 4);
+
+// ---------------------------------------------------------------- fachadas
+function facadeMaterial(opts: { lit: number; base: string; detail: number }): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    fog: true,
+    uniforms: THREE.UniformsUtils.merge([
+      THREE.UniformsLib.fog,
+      {
+        lit: { value: opts.lit },
+        detail: { value: opts.detail },
+        dayFactor: { value: 0 },
+        baseColor: { value: new THREE.Color(opts.base) },
+        warm: { value: new THREE.Color("#f2d9b8") },
+        cool: { value: new THREE.Color("#a9c4d6") },
+        red: { value: new THREE.Color("#ff1f33") },
+      },
+    ]),
+    vertexShader: /* glsl */ `
+      attribute float aSeed;
+      varying vec3 vWorld; varying vec3 vN; varying float vSeed; varying float vTop;
+      #include <fog_pars_vertex>
+      void main(){
+        vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0);
+        vWorld = w.xyz; vSeed = aSeed; vTop = position.y;
+        vN = normalize(mat3(modelMatrix * instanceMatrix) * normal);
+        vec4 mvPosition = viewMatrix * w;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float lit; uniform float detail; uniform float dayFactor;
+      uniform vec3 baseColor; uniform vec3 warm; uniform vec3 cool; uniform vec3 red;
+      varying vec3 vWorld; varying vec3 vN; varying float vSeed; varying float vTop;
+      #include <fog_pars_fragment>
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)) + vSeed * 23.17) * 43758.5453); }
+      void main(){
+        // luz ambiente simples: topo mais claro, faces viradas para a cidade mais quentes
+        float sky = clamp(vN.y, 0.0, 1.0);
+        vec3 col = baseColor * (0.55 + 0.45 * sky) * (1.0 + dayFactor * 1.1);
+        col += vec3(0.025, 0.012, 0.01) * (1.0 - vTop) * (1.0 - dayFactor);
+        if (abs(vN.y) < 0.5) {
+          float u = abs(vN.x) > 0.5 ? vWorld.z : vWorld.x;
+          vec2 g = vec2(u / 1.1, vWorld.y / 1.45);
+          vec2 cell = floor(g); vec2 f = fract(g);
+          // janelas altas e estreitas, com faixas de laje
+          float win = step(0.18, f.x) * step(f.x, 0.82) * step(0.2, f.y) * step(f.y, 0.86);
+          float r = hash(cell);
+          float rowOn = step(0.35, hash(vec2(cell.y, vSeed * 7.0)));
+          float on = step(1.0 - lit, r) * rowOn;
+          vec3 wc = r > 0.985 ? cool : warm;
+          float k = (0.55 + 0.45 * hash(cell + 3.1)) * (1.0 - dayFactor * 0.85);
+          col = mix(col, col * 1.12, win * detail);
+          col += wc * win * on * k * 0.85;
+          // poucas torres ganham uma lâmina vermelha no topo (detalhe, não confete)
+          col += red * 1.6 * step(0.992, vTop) * step(0.9, vSeed) * detail * (1.0 - dayFactor * 0.6);
+        }
+        gl_FragColor = vec4(col, 1.0);
+        #include <fog_fragment>
+      }`,
+  });
+}
+
+function buildingRing(scene: THREE.Scene, opts: {
+  count: number; rMin: number; rMax: number; wMin: number; wMax: number; hMin: number; hMax: number;
+  lit: number; base: string; detail: number; seed: number; lowSector: boolean; setbacks?: boolean;
+}): { mat: THREE.ShaderMaterial[] } {
+  const rnd = mulberry32(opts.seed);
+  const geo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+  const mat = facadeMaterial({ lit: opts.lit, base: opts.base, detail: opts.detail });
+  const mesh = new THREE.InstancedMesh(geo, mat, opts.count);
+  const seeds = new Float32Array(opts.count);
+  const extra = opts.setbacks ? new THREE.InstancedMesh(geo, mat, opts.count) : undefined;
+  const extraSeeds = new Float32Array(opts.count);
+  const antennas = opts.setbacks ? new THREE.InstancedMesh(new THREE.CylinderGeometry(0.08, 0.12, 1, 5).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: "#1d1c20", metalness: 0.8, roughness: 0.4 }), opts.count) : undefined;
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const s = new THREE.Vector3();
+  const p = new THREE.Vector3();
+  let n = 0;
+  let e = 0;
+  for (let i = 0; i < opts.count; i++) {
+    const ang = rnd() * Math.PI * 2;
+    const r = opts.rMin + rnd() * (opts.rMax - opts.rMin);
+    const w = opts.wMin + rnd() * (opts.wMax - opts.wMin);
+    const d = opts.wMin + rnd() * (opts.wMax - opts.wMin);
+    const f = facing(ang);
+    const maxH = opts.lowSector && f > 0.3 ? 4 + (1 - f) * 22 : opts.hMax;
+    const h = opts.hMin + Math.pow(rnd(), 1.5) * Math.max(0, maxH - opts.hMin);
+    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.round(rnd() * 3) * (Math.PI / 2) + (rnd() - 0.5) * 0.15);
+    p.set(Math.cos(ang) * r, 0, Math.sin(ang) * r);
+    mesh.setMatrixAt(n, m.compose(p, q, s.set(w, h, d)));
+    seeds[n++] = rnd();
+    if (extra && antennas && h > 30) {
+      // recuo no topo + antena: silhueta mais rica nas torres próximas
+      const k = 0.55 + rnd() * 0.2;
+      const eh = h * (0.12 + rnd() * 0.18);
+      extra.setMatrixAt(e, m.compose(p.clone().setY(h), q, s.set(w * k, eh, d * k)));
+      antennas.setMatrixAt(e, m.compose(p.clone().setY(h + eh), q, s.set(1, 4 + rnd() * 10, 1)));
+      extraSeeds[e++] = rnd();
+    }
+  }
+  mesh.count = n;
+  geo.setAttribute("aSeed", new THREE.InstancedBufferAttribute(seeds, 1));
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  if (extra && antennas) {
+    const egeo = geo.clone();
+    egeo.setAttribute("aSeed", new THREE.InstancedBufferAttribute(extraSeeds, 1));
+    extra.geometry = egeo;
+    extra.count = e;
+    antennas.count = e;
+    extra.frustumCulled = antennas.frustumCulled = false;
+    scene.add(extra, antennas);
+  }
+  return { mat: [mat] };
+}
+
+// ---------------------------------------------------------------- luzes em movimento (pontos no shader)
+function movingLights(scene: THREE.Scene, opts: {
+  count: number; radius: number; spread: number; y: number; ySpread: number; speed: number; color: string; size: number;
+  intensity: number; seed: number; blink?: boolean; ellipse?: number; skipSector?: boolean;
+}): THREE.ShaderMaterial {
+  const rnd = mulberry32(opts.seed);
+  const ang = new Float32Array(opts.count);
+  const rad = new Float32Array(opts.count);
+  const hy = new Float32Array(opts.count);
+  const spd = new Float32Array(opts.count);
+  const pos = new Float32Array(opts.count * 3);
+  for (let i = 0; i < opts.count; i++) {
+    ang[i] = rnd() * Math.PI * 2;
+    rad[i] = opts.radius + (rnd() - 0.5) * opts.spread;
+    hy[i] = opts.y + (rnd() - 0.5) * opts.ySpread;
+    spd[i] = opts.speed * (0.7 + rnd() * 0.6);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("aAng", new THREE.BufferAttribute(ang, 1));
+  geo.setAttribute("aRad", new THREE.BufferAttribute(rad, 1));
+  geo.setAttribute("aY", new THREE.BufferAttribute(hy, 1));
+  geo.setAttribute("aSpd", new THREE.BufferAttribute(spd, 1));
+  const mat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: {
+      time: { value: 0 },
+      zoom: { value: 1 },
+      color: { value: new THREE.Color(opts.color).multiplyScalar(opts.intensity) },
+      size: { value: opts.size },
+      ellipse: { value: opts.ellipse ?? 1 },
+      blink: { value: opts.blink ? 1 : 0 },
+      skip: { value: opts.skipSector ? 1 : 0 },
+    },
+    vertexShader: /* glsl */ `
+      attribute float aAng; attribute float aRad; attribute float aY; attribute float aSpd;
+      uniform float time; uniform float zoom; uniform float size; uniform float ellipse; uniform float blink; uniform float skip;
+      varying float vA;
+      void main(){
+        float a = aAng + time * aSpd;
+        vec3 p = vec3(cos(a) * aRad, aY, sin(a) * aRad * ellipse);
+        // some no setor entre câmera e torre
+        float f = cos(a - 0.7853982);
+        vA = skip > 0.5 ? (1.0 - smoothstep(0.35, 0.55, f)) : 1.0;
+        if (blink > 0.5) vA *= 0.55 + 0.45 * step(0.5, fract(time * 0.5 + aAng));
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = size * zoom;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 color; varying float vA;
+      void main(){
+        vec2 c = gl_PointCoord - 0.5;
+        float d = length(c);
+        float a = smoothstep(0.5, 0.0, d) * vA;
+        if (a < 0.01) discard;
+        gl_FragColor = vec4(color * a, a);
+      }`,
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  scene.add(pts);
+  return mat;
+}
+
+// ---------------------------------------------------------------- letreiros holográficos (só glifos inventados)
+function glyphTexture(seed: number, tint: string): THREE.CanvasTexture {
+  const rnd = mulberry32(seed);
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 512;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "rgba(10,8,10,0.6)";
+  g.fillRect(0, 0, 256, 512);
+  g.strokeStyle = tint;
+  g.fillStyle = tint;
+  g.lineWidth = 6;
+  for (let y = 40; y < 480; y += 64) {
+    for (let x = 40; x < 220; x += 64) {
+      if (rnd() < 0.25) continue;
+      g.globalAlpha = 0.5 + rnd() * 0.5;
+      g.beginPath();
+      const kind = Math.floor(rnd() * 4);
+      if (kind === 0) { g.moveTo(x - 16, y - 16); g.lineTo(x + 16, y - 16); g.lineTo(x, y + 16); }
+      else if (kind === 1) { g.moveTo(x - 16, y); g.lineTo(x + 16, y); g.moveTo(x, y - 16); g.lineTo(x, y + 16); }
+      else if (kind === 2) { g.rect(x - 14, y - 14, 28, 28); }
+      else { g.arc(x, y, 14, rnd() * 3, rnd() * 3 + 3.5); }
+      g.stroke();
+    }
+  }
+  g.globalAlpha = 1;
+  g.fillRect(20, 16, 216, 4);
+  g.fillRect(20, 492, 216, 4);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+export function createCity(scene: THREE.Scene): City {
+  const mats: THREE.ShaderMaterial[] = [];
+  // fundo: silhuetas altas e finas na neblina
+  mats.push(...buildingRing(scene, { count: 130, rMin: 170, rMax: 300, wMin: 8, wMax: 18, hMin: 30, hMax: 170, lit: 0.06, base: "#0b0b0e", detail: 0.6, seed: 11, lowSector: false }).mat);
+  // meio: blocos simples
+  mats.push(...buildingRing(scene, { count: 90, rMin: 95, rMax: 170, wMin: 8, wMax: 16, hMin: 14, hMax: 95, lit: 0.1, base: "#111014", detail: 0.85, seed: 23, lowSector: true }).mat);
+  // perto: torres com recuo e antena
+  mats.push(...buildingRing(scene, { count: 46, rMin: 50, rMax: 95, wMin: 9, wMax: 16, hMin: 10, hMax: 110, lit: 0.13, base: "#141317", detail: 1, seed: 37, lowSector: true, setbacks: true }).mat);
+
+  // chão: pedra e asfalto molhados (reflexo vem do environment)
+  const ground = new THREE.Mesh(
+    new THREE.CircleGeometry(420, 64).rotateX(-Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: "#0d0c0f", roughness: 0.3, metalness: 0.3, envMapIntensity: 1.0 }),
+  );
+  ground.position.y = -0.01;
+  scene.add(ground);
+  // calçada/praça clara ao redor do pódio
+  const plaza = new THREE.Mesh(
+    new THREE.RingGeometry(26, 44, 64).rotateX(-Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: "#18171a", roughness: 0.6, metalness: 0.1 }),
+  );
+  plaza.position.y = 0.005;
+  scene.add(plaza);
+
+  // postes com luz quente e volume falso
+  const rnd = mulberry32(5);
+  const poles = 22;
+  const poleGeo = new THREE.CylinderGeometry(0.08, 0.1, 6, 6).translate(0, 3, 0);
+  const headGeo = new THREE.BoxGeometry(0.9, 0.12, 0.3);
+  const beamGeo = new THREE.ConeGeometry(2.4, 6, 20, 1, true).translate(0, -3, 0);
+  const poleM = new THREE.InstancedMesh(poleGeo, new THREE.MeshStandardMaterial({ color: "#1d1c20", metalness: 0.8, roughness: 0.4 }), poles);
+  const headM = new THREE.InstancedMesh(headGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color("#ffd9a8").multiplyScalar(2.2), toneMapped: false }), poles);
+  const beamMat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    uniforms: { color: { value: new THREE.Color("#ffd9a8") } },
+    vertexShader: /* glsl */ `varying float vY; void main(){ vY = uv.y; gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0); }`,
+    fragmentShader: /* glsl */ `uniform vec3 color; varying float vY; void main(){ float a = 0.06 * (1.0 - vY) * (1.0 - vY); gl_FragColor = vec4(color * a, a); }`,
+  });
+  const beamM = new THREE.InstancedMesh(beamGeo, beamMat, poles);
+  const m = new THREE.Matrix4();
+  for (let i = 0; i < poles; i++) {
+    const a = (i / poles) * Math.PI * 2 + rnd() * 0.05;
+    const r = 34 + (i % 2) * 7;
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    poleM.setMatrixAt(i, m.makeTranslation(x, 0, z));
+    headM.setMatrixAt(i, m.makeTranslation(x, 6, z));
+    beamM.setMatrixAt(i, m.makeTranslation(x, 6, z));
+  }
+  scene.add(poleM, headM, beamM);
+
+  // elevado: anel de pista escura com faróis em duas mãos (some no setor da câmera)
+  const deckSegs = 72;
+  const deckGeo = new THREE.BoxGeometry(1, 0.5, 3.4);
+  const deck = new THREE.InstancedMesh(deckGeo, new THREE.MeshStandardMaterial({ color: "#121115", roughness: 0.7, metalness: 0.3 }), deckSegs);
+  const pierGeo = new THREE.BoxGeometry(0.8, 9, 0.8).translate(0, 4.5, 0);
+  const piers = new THREE.InstancedMesh(pierGeo, new THREE.MeshStandardMaterial({ color: "#151418", roughness: 0.8 }), deckSegs);
+  const q = new THREE.Quaternion();
+  const sc = new THREE.Vector3();
+  let dn = 0;
+  let pn = 0;
+  const R = 110;
+  for (let i = 0; i < deckSegs; i++) {
+    const a = (i / deckSegs) * Math.PI * 2;
+    if (facing(a) > 0.4) continue;
+    const len = (2 * Math.PI * R) / deckSegs + 0.3;
+    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a);
+    deck.setMatrixAt(dn++, m.compose(new THREE.Vector3(Math.cos(a) * R, 9.2, Math.sin(a) * R), q, sc.set(len, 1, 1)));
+    if (i % 3 === 0) piers.setMatrixAt(pn++, m.makeTranslation(Math.cos(a) * R, 0, Math.sin(a) * R));
+  }
+  deck.count = dn;
+  piers.count = pn;
+  scene.add(deck, piers);
+
+  const timed: THREE.ShaderMaterial[] = [
+    movingLights(scene, { count: 220, radius: R - 0.8, spread: 0.6, y: 9.6, ySpread: 0, speed: 0.05, color: "#ff2a3a", size: 2.6, intensity: 2.2, seed: 41, skipSector: true }),
+    movingLights(scene, { count: 220, radius: R + 0.8, spread: 0.6, y: 9.6, ySpread: 0, speed: -0.05, color: "#fff1dc", size: 2.6, intensity: 2.0, seed: 43, skipSector: true }),
+    // tráfego aéreo: poucos veículos altos, devagar, piscando lento
+    movingLights(scene, { count: 40, radius: 150, spread: 90, y: 70, ySpread: 50, speed: 0.025, color: "#ede6dc", size: 3.2, intensity: 1.8, seed: 47, blink: true, ellipse: 0.7, skipSector: true }),
+  ];
+
+  // letreiros: glifos abstratos em tons contidos, presos a prédios próximos
+  const boardSpots: [number, number, number, string][] = [
+    [-60, 26, -40, "#ff4a55"], [-30, 34, -72, "#ede6dc"], [-78, 20, 10, "#9fd6e0"],
+    [40, 30, -70, "#ede6dc"], [-72, 40, -46, "#ff4a55"], [12, 22, -88, "#9fd6e0"],
+  ];
+  boardSpots.forEach(([x, y, z, tint], i) => {
+    const tex = glyphTexture(100 + i, tint);
+    const board = new THREE.Mesh(
+      new THREE.PlaneGeometry(5, 10),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, color: new THREE.Color(1.15, 1.15, 1.15), depthWrite: false }),
+    );
+    board.position.set(x, y, z);
+    board.lookAt(x + 1, y, z + 1);
+    scene.add(board);
+  });
+
+  let zoomRef = 1;
+  return {
+    updateWeather(w, t) {
+      for (const mt of mats) mt.uniforms.dayFactor.value = w.dayFactor;
+      const cam = scene.userData.camera as THREE.OrthographicCamera | undefined;
+      zoomRef = cam ? cam.zoom : zoomRef;
+      for (const mt of timed) {
+        mt.uniforms.time.value = t * MOTION;
+        mt.uniforms.zoom.value = zoomRef;
+      }
+    },
   };
 }

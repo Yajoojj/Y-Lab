@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import type { ClientModel } from "../model";
 import type { Agent } from "../../../hub/src/types";
-import { AgentView } from "./agent";
+import { AgentView, attachSynthBatches } from "./agent";
+import { createAtmosphere } from "./atmosphere";
 import { createCity } from "./city";
 import { createPost } from "./post";
 import { createRain } from "./rain";
@@ -19,12 +20,15 @@ export interface LabScene {
 
 /** zoom that fits the full tower (projected height ~0.82h + crown) */
 function overviewZoom(h: number): number {
-  return Math.min(1.4, Math.max(0.3, 70 / ((h + 24) * 0.82 + 26)));
+  return Math.min(1.3, Math.max(0.3, 70 / ((h + 26) * 0.82 + 30)));
 }
 
 /** Builds the scene and keeps it synced with the model. Throws Error("webgl") without WebGL. */
 export function createLabScene(canvas: HTMLCanvasElement, model: ClientModel, light: boolean): LabScene {
   const stage = createStage(canvas);
+  stage.scene.userData.camera = stage.camera;
+  const atmosphere = createAtmosphere(stage.scene, stage.renderer);
+  attachSynthBatches(stage.scene);
   const city = createCity(stage.scene);
   const rain = createRain(stage.scene);
   const tower = new Tower(stage.scene);
@@ -105,6 +109,7 @@ export function createLabScene(canvas: HTMLCanvasElement, model: ClientModel, li
 
   stage.onFrame((dt, t) => {
     weather.tick(dt);
+    atmosphere.update(weather.state, dt);
     city.updateWeather(weather.state, t);
     rain.update(t, weather.state.rainIntensity);
     tower.tick(t);

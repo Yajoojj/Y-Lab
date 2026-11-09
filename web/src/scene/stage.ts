@@ -38,13 +38,11 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance", stencil: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  // o tone mapping fica no pós-processamento (ou é ligado no modo leve)
+  renderer.toneMapping = THREE.NoToneMapping;
   renderer.setClearColor(BG);
 
   const scene = new THREE.Scene();
-  scene.background = BG;
-  scene.fog = new THREE.FogExp2(BG, 0.0022);
 
   const aspect = window.innerWidth / window.innerHeight;
   const camera = new THREE.OrthographicCamera((-VIEW * aspect) / 2, (VIEW * aspect) / 2, VIEW / 2, -VIEW / 2, -500, 1500);
@@ -61,31 +59,6 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   controls.screenSpacePanning = true;
   controls.target.set(0, 20, 0);
   controls.update();
-
-  // céu: esfera com gradiente magenta → azul profundo
-  const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(900, 32, 16),
-    new THREE.ShaderMaterial({
-      side: THREE.BackSide,
-      depthWrite: false,
-      fog: false,
-      uniforms: { top: { value: new THREE.Color("#060507") }, horizon: { value: new THREE.Color("#2a0408") }, glow: { value: new THREE.Color("#ff1f33") } },
-      vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-      fragmentShader: `uniform vec3 top; uniform vec3 horizon; uniform vec3 glow; varying vec3 vP;
-        void main(){ float h = clamp(vP.y, -0.2, 1.0);
-          vec3 c = mix(horizon, top, smoothstep(0.0, 0.55, h));
-          c += glow * 0.18 * exp(-abs(h) * 14.0);
-          gl_FragColor = vec4(c, 1.0); }`,
-    }),
-  );
-  sky.renderOrder = -1;
-  scene.add(sky);
-
-  scene.add(new THREE.AmbientLight("#5a3a40", 0.5));
-  scene.add(new THREE.HemisphereLight("#ede6dc", "#c3001b", 0.35));
-  const moon = new THREE.DirectionalLight("#f2e6e0", 0.8);
-  moon.position.set(-40, 120, 60);
-  scene.add(moon);
 
   const frameFns: ((dt: number, t: number) => void)[] = [];
   const resizeFns: ((w: number, h: number) => void)[] = [];
