@@ -30,6 +30,8 @@ export class Store {
   private usage?: Usage;
   private activity: ActivityItem[] = [];
   private finishedList: Agent[] = [];
+  /** done já varridos: ignorados até voltarem com outro status */
+  private swept = new Set<string>();
   private listeners = new Set<Listener>();
   private readonly now: () => number;
   private readonly file?: string;
@@ -77,6 +79,10 @@ export class Store {
     const at = this.iso();
 
     for (const p of patches) {
+      if (this.swept.has(p.id)) {
+        if (p.status === undefined || p.status === "done") continue;
+        this.swept.delete(p.id);
+      }
       const prev = this.agents[p.id];
       const { action, ...fields } = p;
       const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)) as Partial<Agent>;
@@ -167,6 +173,7 @@ export class Store {
     for (const a of Object.values(this.agents)) {
       if (a.status === "done" && now - Date.parse(a.updatedAt) > LIMITS.removeDoneAfterMs) {
         delete this.agents[a.id];
+        this.swept.add(a.id);
         removed[a.id] = null;
       }
     }

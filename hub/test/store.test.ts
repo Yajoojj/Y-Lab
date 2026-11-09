@@ -105,6 +105,19 @@ describe("Store.sweep", () => {
     expect(store.finished().map((a) => a.id)).toEqual(["bot:A"]);
   });
 
+  it("does not resurrect a swept done agent until it works again", () => {
+    const { store, advance } = setup();
+    store.applyPatches([{ id: "s", source: "claude", status: "done", step: "old" }]);
+    store.applyPatches([{ id: "t", source: "http", status: "done" }]);
+    advance(31 * 60_000);
+    store.sweep();
+    store.applyPatches([{ id: "s", source: "claude", status: "done", step: "old" }]);
+    expect(store.state().agents.s).toBeUndefined();
+    expect(store.finished()[0].id).toBe("t");
+    store.applyPatches([{ id: "s", source: "claude", status: "working", step: "back" }]);
+    expect(store.state().agents.s.status).toBe("working");
+  });
+
   it("keeps at most 20 finished, newest first", () => {
     const { store, advance } = setup();
     for (let i = 0; i < 25; i++) { store.applyPatches([{ id: `b${i}`, source: "http", status: "done" }]); advance(1000); }
