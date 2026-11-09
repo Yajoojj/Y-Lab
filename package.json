@@ -1,0 +1,14 @@
+{
+  "name": "y-lab",
+  "private": true,
+  "type": "module",
+  "workspaces": ["hub", "web"],
+  "scripts": {
+    "dev": "concurrently -k -n hub,web -c yellow,cyan \"npm -w hub run dev\" \"npm -w web run dev\"",
+    "test": "npm -w hub test && npm -w web test",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
