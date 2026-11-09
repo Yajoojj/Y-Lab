@@ -3,6 +3,7 @@ import path from "node:path";
 import { describeTool, roleOf } from "../describe";
 import { LIMITS, type AgentPatch, type Status } from "../types";
 import { readTail } from "./jsonl";
+import { projectDirName } from "./k9Lanes";
 
 export interface ClaudeSessionsOptions {
   projectsDir: string;
@@ -17,15 +18,15 @@ interface Entry {
   message?: { content?: unknown };
 }
 
-interface Summary { step: string; lastIsError: boolean; cwd?: string }
+interface Summary { step: string; lastIsError: boolean; cwds: string[] }
 
 function summarize(records: unknown[]): Summary {
   let step = "";
   let lastIsError = false;
-  let cwd: string | undefined;
+  const cwds: string[] = [];
   for (const r of records as Entry[]) {
     if (!r || typeof r !== "object") continue;
-    if (typeof r.cwd === "string") cwd = r.cwd;
+    if (typeof r.cwd === "string" && !cwds.includes(r.cwd)) cwds.push(r.cwd);
     const content = r.message?.content;
     if (!Array.isArray(content)) continue;
     for (const c of content as Record<string, unknown>[]) {
@@ -40,7 +41,7 @@ function summarize(records: unknown[]): Summary {
       }
     }
   }
-  return { step: step.slice(0, LIMITS.step), lastIsError, cwd };
+  return { step: step.slice(0, LIMITS.step), lastIsError, cwds };
 }
 
 function statusFor(ageMs: number, lastIsError: boolean): Status {
@@ -77,7 +78,8 @@ export function collectClaudeSessions(opts: ClaudeSessionsOptions): AgentPatch[]
       if (m === undefined || opts.now - m > maxAgeMs) continue;
       const sid = f.slice(0, -".jsonl".length);
       const s = summarize(readTail(file));
-      const label = projectLabel(dirName, s.cwd);
+      const cwd = s.cwds.find((c) => projectDirName(c) === dirName) ?? s.cwds.at(-1);
+      const label = projectLabel(dirName, cwd);
       const team = opts.teamFor?.(dirName) ?? label;
       const id = `claude:${sid}`;
       out.push({
@@ -89,7 +91,7 @@ export function collectClaudeSessions(opts: ClaudeSessionsOptions): AgentPatch[]
         status: statusFor(opts.now - m, s.lastIsError),
         step: s.step,
         action: s.step || undefined,
-        link: s.cwd,
+        link: cwd,
       });
 
       const subDir = path.join(projDir, sid, "subagents");
