@@ -61,6 +61,18 @@ describe("server", () => {
     expect((await post(url, { bot: "A", status: "idle", step: "x".repeat(70 * 1024) })).status).toBe(413);
   });
 
+  it("accepts Windows-1252 bodies sent by curl on Windows", async () => {
+    const { port, store } = await start();
+    const body = Buffer.concat([Buffer.from('{"bot":"A","status":"idle","step":"voc'), Buffer.from([0xea]), Buffer.from('"}')]);
+    const res = await new Promise<number>((resolve, reject) => {
+      const req = http.request({ host: "127.0.0.1", port, method: "POST", path: "/api/events", headers: { "content-type": "application/json" } }, (r) => { r.resume(); resolve(r.statusCode ?? 0); });
+      req.on("error", reject);
+      req.end(body);
+    });
+    expect(res).toBe(204);
+    expect(store.state().agents["bot:A"].step).toBe("você");
+  });
+
   it("rejects foreign Host headers (DNS rebinding)", async () => {
     const { port } = await start();
     expect((await raw(port, { path: "/api/state", headers: { Host: `evil.com:${port}` } })).status).toBe(403);

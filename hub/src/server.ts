@@ -41,6 +41,15 @@ function tokenOk(req: http.IncomingMessage, token?: string): boolean {
   return got.length === want.length && timingSafeEqual(got, want);
 }
 
+/** UTF-8; se não for UTF-8 válido (curl no Windows manda cp1252), lê como Windows-1252. */
+function decode(buf: Buffer): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(buf);
+  } catch {
+    return new TextDecoder("windows-1252").decode(buf);
+  }
+}
+
 function readBody(req: http.IncomingMessage): Promise<string | null> {
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -51,7 +60,7 @@ function readBody(req: http.IncomingMessage): Promise<string | null> {
       if (size > MAX_BODY) { tooBig = true; return; }
       chunks.push(c);
     });
-    req.on("end", () => resolve(tooBig ? null : Buffer.concat(chunks).toString("utf-8")));
+    req.on("end", () => resolve(tooBig ? null : decode(Buffer.concat(chunks))));
     req.on("error", reject);
   });
 }
