@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { deriveLook, teamColor } from "./look";
 import type { EventInput } from "./schema";
 import { LIMITS, type ActivityItem, type Agent, type AgentPatch, type Delta, type LabState, type Routine, type Team, type Usage } from "./types";
@@ -184,10 +186,27 @@ export class Store {
   }
 
   load(): void {
-    /* Task 3 */
+    if (!this.file || !fs.existsSync(this.file)) return;
+    try {
+      const s = JSON.parse(fs.readFileSync(this.file, "utf-8")) as Partial<LabState>;
+      if (!s || typeof s !== "object" || typeof s.agents !== "object" || s.agents === null) throw new Error("estado inválido");
+      this.agents = s.agents;
+      this.routines = s.routines ?? [];
+      this.usage = s.usage;
+      this.activity = s.activity ?? [];
+      this.finishedList = s.finished ?? [];
+      this.recomputeTeams();
+    } catch {
+      const dest = path.join(path.dirname(this.file), `state.corrupt-${this.now()}.json`);
+      try { fs.renameSync(this.file, dest); } catch { /* sem permissão: segue vazio */ }
+    }
   }
 
   save(): void {
-    /* Task 3 */
+    if (!this.file) return;
+    fs.mkdirSync(path.dirname(this.file), { recursive: true });
+    const tmp = this.file + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(this.state()), "utf-8");
+    fs.renameSync(tmp, this.file);
   }
 }
