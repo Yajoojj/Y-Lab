@@ -65,4 +65,22 @@ describe("ClientModel", () => {
     expect(m.focusTeam).toBe("Ops");
     expect(seen.flat()).toEqual(["focus", "focus"]);
   });
+
+  it("mostra só os andares com alguém trabalhando, esperando ou com erro", () => {
+    const m = new ClientModel();
+    const em = (id: string, team: string, status: Agent["status"]) => ({ ...agent(id, status), team });
+    m.applySnapshot({
+      agents: { a: em("a", "Ativo", "working"), b: em("b", "Parado", "idle"), c: em("c", "Pronto", "done") },
+      teams: [{ name: "Ativo", color: "#000000", order: 0 }, { name: "Parado", color: "#000000", order: 1 },
+              { name: "Pronto", color: "#000000", order: 2 }],
+      routines: [], activity: [], finished: [],
+    });
+    expect(m.state.teams.map((t) => [t.name, t.order])).toEqual([["Ativo", 0]]);
+    expect(m.agents().map((a) => a.id)).toEqual(["a"]);
+    m.applyDelta({ agents: { b: em("b", "Parado", "working") } });
+    expect(m.state.teams.map((t) => [t.name, t.order])).toEqual([["Ativo", 0], ["Parado", 1]]);
+    m.toggleAllFloors();
+    expect(m.state.teams).toHaveLength(3);
+    expect(m.counts().done).toBe(1);
+  });
 });

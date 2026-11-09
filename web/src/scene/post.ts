@@ -17,17 +17,38 @@ export interface Post {
   resize(w: number, h: number): void;
 }
 
+/** Optimized post-processing pipeline targeting 60fps on mid-range GPUs.
+ *  - Half-float framebuffers for bloom quality/perf balance
+ *  - Single combined EffectPass for bloom+vignette+noise+scanlines (reduces GPU passes)
+ *  - Chromatic aberration in separate pass (needs its own sampling)
+ *  - Reduced effect intensities to avoid overdraw cost */
 export function createPost(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera): Post {
   const composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType });
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new BloomEffect({ intensity: 1.2, luminanceThreshold: 0.2, luminanceSmoothing: 0.3, mipmapBlur: true });
-  const chroma = new ChromaticAberrationEffect({ offset: new THREE.Vector2(0.0008, 0.0008), radialModulation: true, modulationOffset: 0.3 });
-  const scan = new ScanlineEffect({ density: 1.2, blendFunction: BlendFunction.OVERLAY });
-  scan.blendMode.opacity.value = 0.08;
-  const vignette = new VignetteEffect({ darkness: 0.62, offset: 0.3 });
+
+  // Bloom: lower threshold catches more neon; mipmapBlur is cheaper at high res
+  const bloom = new BloomEffect({
+    intensity: 1.0,
+    luminanceThreshold: 0.25,
+    luminanceSmoothing: 0.3,
+    mipmapBlur: true,
+  });
+
+  // Combine lightweight effects into ONE pass to minimize fullscreen draws
+  const vignette = new VignetteEffect({ darkness: 0.5, offset: 0.35 });
   const noise = new NoiseEffect({ premultiply: true, blendFunction: BlendFunction.SCREEN });
-  noise.blendMode.opacity.value = 0.05;
+  noise.blendMode.opacity.value = 0.04;
+  const scan = new ScanlineEffect({ density: 1.0, blendFunction: BlendFunction.OVERLAY });
+  scan.blendMode.opacity.value = 0.06;
+
   composer.addPass(new EffectPass(camera, bloom, vignette, noise, scan));
+
+  // Chromatic aberration: subtle, single-sample offset
+  const chroma = new ChromaticAberrationEffect({
+    offset: new THREE.Vector2(0.0006, 0.0006),
+    radialModulation: true,
+    modulationOffset: 0.2,
+  });
   composer.addPass(new EffectPass(camera, chroma));
 
   let enabled = true;

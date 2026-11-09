@@ -39,6 +39,9 @@ window.addEventListener("keydown", (e) => {
     model.select(undefined);
     model.setFocus(undefined);
   }
+  const alvo = e.target as HTMLElement | null;
+  const digitando = alvo && (alvo.tagName === "INPUT" || alvo.tagName === "TEXTAREA" || alvo.isContentEditable);
+  if ((e.key === "t" || e.key === "T") && !digitando && !e.ctrlKey && !e.metaKey && !e.altKey) model.toggleAllFloors();
 });
 
 export { lab, hud, model };

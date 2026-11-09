@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { mulberry32 } from "./city";
 
-/** Chuva animada inteiramente no shader: a CPU só atualiza o tempo. */
-export function createRain(scene: THREE.Scene, count = 6000): { mesh: THREE.LineSegments; update(t: number): void } {
+/** Rain animated entirely in shader; CPU only updates time and intensity. */
+export function createRain(scene: THREE.Scene, count = 6000): { mesh: THREE.LineSegments; update(t: number, intensity?: number): void } {
   const rnd = mulberry32(42);
   const pos = new Float32Array(count * 2 * 3);
   const end = new Float32Array(count * 2);
@@ -21,21 +21,40 @@ export function createRain(scene: THREE.Scene, count = 6000): { mesh: THREE.Line
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-    uniforms: { time: { value: 0 }, color: { value: new THREE.Color("#e8c8c8") } },
+    uniforms: {
+      time: { value: 0 },
+      color: { value: new THREE.Color("#e8c8c8") },
+      intensity: { value: 1.0 },
+    },
     vertexShader: /* glsl */ `
-      attribute float aEnd; uniform float time; varying float vA;
+      attribute float aEnd;
+      uniform float time;
+      uniform float intensity;
+      varying float vA;
       void main(){
         vec3 p = position;
         float speed = 55.0 + fract(p.x * 13.1) * 25.0;
         p.y = mod(p.y - time * speed, 160.0) - 4.0;
-        p.y -= aEnd * 1.6; p.x -= aEnd * 0.35;
-        vA = 1.0 - aEnd * 0.8;
+        p.y -= aEnd * 1.6;
+        p.x -= aEnd * 0.35;
+        vA = (1.0 - aEnd * 0.8) * intensity;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
       }`,
-    fragmentShader: /* glsl */ `uniform vec3 color; varying float vA; void main(){ gl_FragColor = vec4(color, 0.16 * vA); }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 color;
+      varying float vA;
+      void main(){
+        gl_FragColor = vec4(color, 0.16 * vA);
+      }`,
   });
   const mesh = new THREE.LineSegments(geo, mat);
   mesh.frustumCulled = false;
   scene.add(mesh);
-  return { mesh, update: (t) => { mat.uniforms.time.value = t; } };
+  return {
+    mesh,
+    update: (t, intensity = 1.0) => {
+      mat.uniforms.time.value = t;
+      mat.uniforms.intensity.value = Math.max(0, Math.min(1, intensity));
+    },
+  };
 }

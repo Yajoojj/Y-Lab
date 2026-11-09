@@ -2,7 +2,7 @@
 
 Laboratório de IA pessoal: uma torre 3D ao vivo, em vermelho e preto, que mostra o que cada agente está fazendo. Isso inclui sessões e subagentes do Claude Code, trilhas do orquestrador K9 e qualquer bot que reporte por HTTP.
 
-Tudo roda na sua máquina. O hub só escuta em `127.0.0.1` e nada é enviado para serviços de terceiros.
+Tudo roda na sua máquina. O hub só escuta em `127.0.0.1`, e os dados dos agentes nunca saem dela. A única chamada externa é o clima da cena (veja abaixo).
 
 ## Como rodar
 
@@ -26,6 +26,8 @@ Abra <http://127.0.0.1:5173>.
 - Cada **andar** é uma equipe: uma trilha da empresa, o projeto de uma sessão do Claude Code ou o grupo definido por `groups`.
 - Clique num andar (na cena ou na lista **Andares**) para ver o corte da torre naquele andar. Clique num agente para abrir o painel de detalhes. `Esc` volta à visão geral.
 - **Modo leve** desliga os efeitos (bloom, scanlines e chuva) em máquinas mais fracas.
+- **Andares parados ficam ocultos:** só aparecem andares com alguém trabalhando, esperando você ou com erro. A tecla `T` mostra ou esconde os andares parados.
+- **Clima real:** se o navegador permitir a localização, a cena segue o tempo da sua região (chuva, nuvens, dia e noite) pelo Open-Meteo. Só a localização aproximada (cerca de 11 km) é enviada. Se você negar, a cena usa um ciclo pelo horário.
 
 | Status | Cor | Na cena |
 |---|---|---|

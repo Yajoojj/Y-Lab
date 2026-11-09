@@ -7,6 +7,7 @@ import { createPost } from "./post";
 import { createRain } from "./rain";
 import { createStage, type Stage } from "./stage";
 import { Tower, FLOOR_H } from "./tower";
+import { WeatherSystem } from "./weather";
 
 export interface LabScene {
   stage: Stage;
@@ -16,18 +17,20 @@ export interface LabScene {
   isLight(): boolean;
 }
 
-/** zoom que cabe a torre inteira (altura projetada ~0.82h + coroa) */
+/** zoom that fits the full tower (projected height ~0.82h + crown) */
 function overviewZoom(h: number): number {
   return Math.min(1.4, Math.max(0.3, 70 / ((h + 24) * 0.82 + 26)));
 }
 
-/** Monta a cena e a mantém sincronizada com o modelo. Lança Error("webgl") sem WebGL. */
+/** Builds the scene and keeps it synced with the model. Throws Error("webgl") without WebGL. */
 export function createLabScene(canvas: HTMLCanvasElement, model: ClientModel, light: boolean): LabScene {
   const stage = createStage(canvas);
-  createCity(stage.scene);
+  const city = createCity(stage.scene);
   const rain = createRain(stage.scene);
   const tower = new Tower(stage.scene);
   const post = createPost(stage.renderer, stage.scene, stage.camera);
+  const weather = new WeatherSystem();
+
   stage.onResize((w, h) => post.resize(w, h));
   post.resize(window.innerWidth, window.innerHeight);
   stage.setRender((dt) => post.render(dt));
@@ -39,9 +42,6 @@ export function createLabScene(canvas: HTMLCanvasElement, model: ClientModel, li
     rain.mesh.visible = !lightMode;
   };
   applyLight();
-
-  const city = stage.scene.children.find((o) => o instanceof THREE.InstancedMesh) as THREE.InstancedMesh | undefined;
-  const cityMat = city?.material as THREE.ShaderMaterial | undefined;
 
   const place = () => {
     tower.sync(model.state.teams);
@@ -104,10 +104,16 @@ export function createLabScene(canvas: HTMLCanvasElement, model: ClientModel, li
   });
 
   stage.onFrame((dt, t) => {
-    rain.update(t);
+    weather.tick(dt);
+    city.updateWeather(weather.state, t);
+    rain.update(t, weather.state.rainIntensity);
     tower.tick(t);
-    if (cityMat) cityMat.uniforms.time.value = t;
     for (const v of views.values()) if (v.object.parent) v.tick(dt, t);
+
+    // Adjust rain visibility based on weather
+    if (!lightMode) {
+      rain.mesh.visible = weather.state.rainIntensity > 0.05;
+    }
   });
 
   return {

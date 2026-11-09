@@ -12,7 +12,7 @@ const DESK_DX = 3.4;
 const DESK_X0 = -11.5;
 const DESK_ZS = [-4.2, 1.8];
 
-// recursos compartilhados por todos os andares
+// Shared geometries — reused across all floors for performance
 const geo = {
   slab: new THREE.BoxGeometry(FLOOR_W, 0.35, FLOOR_D),
   edgeX: new THREE.BoxGeometry(FLOOR_W, 0.08, 0.08),
@@ -27,34 +27,66 @@ const geo = {
   sofaBack: new THREE.BoxGeometry(4.2, 0.9, 0.35),
   table: new THREE.CylinderGeometry(0.7, 0.7, 0.45, 24),
   label: new THREE.PlaneGeometry(9, 1.4),
+  // Arasaka ambient details
+  ceilingLight: new THREE.BoxGeometry(3.5, 0.06, 0.3),
+  serverRack: new THREE.BoxGeometry(0.8, 2.2, 0.6),
+  holoPanel: new THREE.PlaneGeometry(1.8, 1.0),
+  floorStrip: new THREE.BoxGeometry(FLOOR_W - 2, 0.02, 0.15),
 };
 
 const mat = {
   slab: new THREE.MeshStandardMaterial({ color: "#0d0a0c", roughness: 0.5, metalness: 0.7 }),
-  floorTop: new THREE.MeshStandardMaterial({ color: "#151012", roughness: 0.3, metalness: 0.5 }),
-  glass: new THREE.MeshStandardMaterial({ color: "#1a0e12", roughness: 0.08, metalness: 0.9, transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false }),
-  mullion: new THREE.MeshStandardMaterial({ color: "#2a2326", roughness: 0.4, metalness: 0.8 }),
-  desk: new THREE.MeshStandardMaterial({ color: "#d8d0c6", roughness: 0.45, metalness: 0.1 }),
-  deskBase: new THREE.MeshStandardMaterial({ color: "#1b1517", roughness: 0.6, metalness: 0.5 }),
-  sofa: new THREE.MeshStandardMaterial({ color: "#3a0a12", roughness: 0.8 }),
-  table: new THREE.MeshStandardMaterial({ color: "#ede6dc", roughness: 0.4 }),
+  floorTop: new THREE.MeshStandardMaterial({ color: "#151012", roughness: 0.25, metalness: 0.6 }),
+  glass: new THREE.MeshStandardMaterial({
+    color: "#1a0e12", roughness: 0.05, metalness: 0.95,
+    transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false,
+  }),
+  mullion: new THREE.MeshStandardMaterial({ color: "#2a2326", roughness: 0.3, metalness: 0.85 }),
+  desk: new THREE.MeshStandardMaterial({ color: "#1a1518", roughness: 0.3, metalness: 0.7 }),
+  deskBase: new THREE.MeshStandardMaterial({ color: "#0e0a0c", roughness: 0.5, metalness: 0.6 }),
+  sofa: new THREE.MeshStandardMaterial({ color: "#2a0810", roughness: 0.7, metalness: 0.2 }),
+  table: new THREE.MeshStandardMaterial({ color: "#1a1518", roughness: 0.3, metalness: 0.6 }),
   strip: new THREE.MeshBasicMaterial({ color: new THREE.Color("#ff1f33").multiplyScalar(2.2), toneMapped: false }),
+  // Arasaka ambient materials
+  ceilingLight: new THREE.MeshBasicMaterial({
+    color: new THREE.Color("#ede6dc").multiplyScalar(1.8), toneMapped: false,
+  }),
+  serverRack: new THREE.MeshStandardMaterial({ color: "#0a0809", roughness: 0.4, metalness: 0.8 }),
+  serverLed: new THREE.MeshBasicMaterial({
+    color: new THREE.Color("#ff1f33").multiplyScalar(2), toneMapped: false,
+  }),
+  holoPanel: new THREE.MeshBasicMaterial({
+    color: new THREE.Color("#4de8ff").multiplyScalar(1.5), toneMapped: false,
+    transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false,
+  }),
+  floorStrip: new THREE.MeshBasicMaterial({
+    color: new THREE.Color("#ff1f33").multiplyScalar(0.8), toneMapped: false,
+    transparent: true, opacity: 0.4,
+  }),
 };
 
-/** Textura de monitor com linhas que rolam (uma só, compartilhada). */
+/** Monitor texture with scrolling Arasaka-style data streams */
 function monitorTexture(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 128;
   c.height = 256;
   const g = c.getContext("2d")!;
-  g.fillStyle = "#12050a";
+  g.fillStyle = "#0a0408";
   g.fillRect(0, 0, 128, 256);
-  for (let y = 6; y < 256; y += 9) {
-    const w = 20 + Math.random() * 90;
-    g.fillStyle = Math.random() > 0.85 ? "#ffb547" : Math.random() > 0.5 ? "#ff1f33" : "#ede6dc";
-    g.globalAlpha = 0.5 + Math.random() * 0.5;
-    g.fillRect(8, y, w, 3);
+  for (let y = 4; y < 256; y += 7) {
+    const w = 15 + Math.random() * 100;
+    // Arasaka palette: crimson, bone, steel blue, ember
+    const colors = ["#ff1f33", "#ede6dc", "#4de8ff", "#ff8a3d"];
+    g.fillStyle = colors[Math.floor(Math.random() * colors.length)];
+    g.globalAlpha = 0.4 + Math.random() * 0.6;
+    g.fillRect(6, y, w, 2);
   }
+  // Corporate logo placeholder: horizontal bars
+  g.globalAlpha = 0.9;
+  g.fillStyle = "#ff1f33";
+  g.fillRect(40, 100, 48, 4);
+  g.fillRect(44, 108, 40, 3);
+  g.fillRect(48, 115, 32, 2);
   const t = new THREE.CanvasTexture(c);
   t.wrapT = THREE.RepeatWrapping;
   t.repeat.set(1, 0.5);
@@ -62,7 +94,9 @@ function monitorTexture(): THREE.CanvasTexture {
   return t;
 }
 const monTex = monitorTexture();
-const monitorMat = new THREE.MeshBasicMaterial({ map: monTex, color: new THREE.Color(1.6, 1.6, 1.6), toneMapped: false, side: THREE.DoubleSide });
+const monitorMat = new THREE.MeshBasicMaterial({
+  map: monTex, color: new THREE.Color(1.8, 1.8, 1.8), toneMapped: false, side: THREE.DoubleSide,
+});
 
 function textTexture(text: string, color: string, sub?: string, width = 1024): THREE.CanvasTexture {
   const center = width !== 1024;
@@ -121,22 +155,30 @@ export class Tower {
     scene.add(this.root);
     this.root.add(this.shell, this.crown);
 
-    // pódio de entrada
+    // Podium with Arasaka-style stepped base
     const podium = new THREE.Mesh(new THREE.BoxGeometry(FLOOR_W + 8, 2, FLOOR_D + 8), mat.slab);
     podium.position.y = 0;
     this.root.add(podium);
+    const podiumStep = new THREE.Mesh(new THREE.BoxGeometry(FLOOR_W + 5, 0.8, FLOOR_D + 5), mat.slab);
+    podiumStep.position.y = 1.4;
+    this.root.add(podiumStep);
     const podiumStrip = new THREE.Mesh(new THREE.BoxGeometry(FLOOR_W + 8.1, 0.12, FLOOR_D + 8.1), mat.strip);
     podiumStrip.position.y = 0.9;
     this.root.add(podiumStrip);
+    const podiumStrip2 = new THREE.Mesh(new THREE.BoxGeometry(FLOOR_W + 5.1, 0.08, FLOOR_D + 5.1), mat.strip);
+    podiumStrip2.position.y = 1.8;
+    this.root.add(podiumStrip2);
 
-    this.signMat = new THREE.MeshBasicMaterial({ map: textTexture("Y-LAB", "#ff1f33", "RESEARCH · OPERATIONS", 560), color: new THREE.Color(2.4, 2.4, 2.4), transparent: true, toneMapped: false, depthWrite: false });
+    this.signMat = new THREE.MeshBasicMaterial({
+      map: textTexture("Y-LAB", "#ff1f33", "ARASAKA DIVISION · OPERATIONS", 560),
+      color: new THREE.Color(2.4, 2.4, 2.4), transparent: true, toneMapped: false, depthWrite: false,
+    });
   }
 
   height(): number {
     return BASE_Y + this.floors.size * FLOOR_H;
   }
 
-  /** Recria os andares só quando a lista de times muda. */
   sync(teams: Team[]): void {
     const key = JSON.stringify(teams.map((t) => [t.name, t.order, t.color]));
     if (key === this.key) return;
@@ -159,7 +201,6 @@ export class Tower {
     for (let r = 0; r < DESK_ROWS; r++) {
       for (let c = 0; c < DESK_COLS; c++) desk.push(new THREE.Vector3(DESK_X0 + c * DESK_DX, y + 1.15, DESK_ZS[r] + 1.25));
     }
-    // excedente: grade na faixa da frente
     for (let i = 0; i < 18; i++) desk.push(new THREE.Vector3(-11.5 + (i % 9) * 2.4, y + 1.15, 6.6 + Math.floor(i / 9) * 1.6));
     const lounge: THREE.Vector3[] = [];
     for (let i = 0; i < 12; i++) lounge.push(new THREE.Vector3(9.2 + (i % 3) * 1.4, y + 1.1, -6 + Math.floor(i / 3) * 1.5));
@@ -174,7 +215,6 @@ export class Tower {
     return obj.userData.team as string | undefined;
   }
 
-  /** Corte da torre: esconde os andares acima do time focado. */
   setCut(team?: string): void {
     const f = team ? this.floors.get(team) : undefined;
     this.visibleUpTo = f ? f.team.order : Infinity;
@@ -206,6 +246,7 @@ export class Tower {
     const slab = new THREE.Mesh(geo.slab, mat.floorTop);
     g.add(slab);
 
+    // Neon edge strips — team-colored
     const edgeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(team.color).multiplyScalar(2), toneMapped: false });
     for (const z of [-FLOOR_D / 2, FLOOR_D / 2]) {
       const e = new THREE.Mesh(geo.edgeX, edgeMat);
@@ -218,7 +259,7 @@ export class Tower {
       g.add(e);
     }
 
-    // paredes de vidro só no fundo e na lateral esquerda (não tapam a câmera)
+    // Glass walls with mullions — back and left side only (camera clearance)
     const wy = (FLOOR_H - 0.35) / 2 + 0.17;
     const back = new THREE.Mesh(geo.wallBack, mat.glass);
     back.position.set(0, wy, -FLOOR_D / 2);
@@ -237,7 +278,7 @@ export class Tower {
       g.add(m);
     }
 
-    // mesas, bases e monitores instanciados
+    // Desks, bases and monitors — instanced for performance
     const n = DESK_COLS * DESK_ROWS;
     const desks = new THREE.InstancedMesh(geo.desk, mat.desk, n);
     const bases = new THREE.InstancedMesh(geo.deskLeg, mat.deskBase, n);
@@ -255,7 +296,7 @@ export class Tower {
     }
     g.add(desks, bases, mons);
 
-    // lounge
+    // Lounge area
     const sofa = new THREE.Mesh(geo.sofa, mat.sofa);
     sofa.position.set(10.6, 0.5, -7.6);
     const sofaBack = new THREE.Mesh(geo.sofaBack, mat.sofa);
@@ -264,14 +305,45 @@ export class Tower {
     table.position.set(10.6, 0.4, -3.5);
     g.add(sofa, sofaBack, table);
 
-    // placa do andar na parede do fundo
+    // === Arasaka ambient details ===
+
+    // Ceiling light strips (recessed linear lights)
+    for (const zOff of [-3, 3]) {
+      const light = new THREE.Mesh(geo.ceilingLight, mat.ceilingLight);
+      light.position.set(0, FLOOR_H - 0.2, zOff);
+      g.add(light);
+    }
+
+    // Server rack against back wall
+    const rack = new THREE.Mesh(geo.serverRack, mat.serverRack);
+    rack.position.set(-10, 1.3, -FLOOR_D / 2 + 0.5);
+    g.add(rack);
+    // LED indicators on rack
+    for (let ly = 0; ly < 4; ly++) {
+      const led = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 0.02), mat.serverLed);
+      led.position.set(-9.7, 0.6 + ly * 0.4, -FLOOR_D / 2 + 0.82);
+      g.add(led);
+    }
+
+    // Holographic status panel on side wall
+    const holo = new THREE.Mesh(geo.holoPanel, mat.holoPanel);
+    holo.rotation.y = Math.PI / 2;
+    holo.position.set(-FLOOR_W / 2 + 0.05, 2.2, 3);
+    g.add(holo);
+
+    // Floor guide strips (Arasaka red path lighting)
+    const strip = new THREE.Mesh(geo.floorStrip, mat.floorStrip);
+    strip.position.set(0, 0.19, 0);
+    g.add(strip);
+
+    // Floor label on back wall
     const labelTex = textTexture(`${String(team.order + 1).padStart(2, "0")}  ${sanitizeLabel(team.name.toUpperCase())}`, team.color);
     const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: true, toneMapped: false, depthWrite: false });
     const label = new THREE.Mesh(geo.label, labelMat);
     label.position.set(-4, FLOOR_H - 1.2, -FLOOR_D / 2 + 0.05);
     g.add(label);
 
-    // volume invisível para o clique no andar
+    // Invisible pick volume for floor clicking
     const pick = new THREE.Mesh(new THREE.BoxGeometry(FLOOR_W, FLOOR_H, FLOOR_D), new THREE.MeshBasicMaterial({ visible: false }));
     pick.position.y = FLOOR_H / 2;
     pick.userData.team = team.name;
@@ -281,7 +353,7 @@ export class Tower {
     return { team, group: g, edgeMat, labelTex, labelMat, pick };
   }
 
-  /** Pilares de luz nos cantos, coroa, letreiro e antena. */
+  /** Pillars, crown, spire and signage — Arasaka corporate tower aesthetic */
   private buildShell(count: number): void {
     for (const o of [...this.shell.children, ...this.crown.children]) {
       o.removeFromParent();
@@ -313,7 +385,7 @@ export class Tower {
     beacon.position.y = top + 19.8;
     beacon.userData.beacon = true;
 
-    // letreiro voltado para a câmera (faces +z e +x)
+    // Signage facing camera (+z and +x faces)
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(15, 4.3), this.signMat);
     sign.position.set(0, top + 3.0, (FLOOR_D * 0.6) / 2 + 0.05);
     const sign2 = sign.clone();
