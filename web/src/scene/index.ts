@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { ClientModel } from "../model";
 import type { Agent } from "../../../hub/src/types";
-import { AgentView, attachSynthBatches } from "./agent";
+import { AgentView, attachSynthBatches, flushSynthBatches } from "./agent";
 import { createAtmosphere } from "./atmosphere";
 import { createCity } from "./city";
 import { createPost } from "./post";
@@ -31,7 +31,7 @@ export function createLabScene(canvas: HTMLCanvasElement, model: ClientModel, li
   const atmosphere = createAtmosphere(stage.scene, stage.renderer);
   attachSynthBatches(stage.scene);
   const city = createCity(stage.scene);
-  const rain = createRain(stage.scene, 2500);
+  const rain = createRain(stage.scene, 1000);
   const tower = new Tower(stage.scene);
   const post = createPost(stage.renderer, stage.scene, stage.camera);
   const weather = new WeatherSystem();
@@ -41,6 +41,7 @@ export function createLabScene(canvas: HTMLCanvasElement, model: ClientModel, li
   stage.setRender((dt) => post.render(dt));
 
   const views = new Map<string, AgentView>();
+  const slotScratch = new THREE.Vector3();
   let lightMode = light;
   const applyLight = () => {
     post.setEnabled(!lightMode);
@@ -66,15 +67,16 @@ export function createLabScene(canvas: HTMLCanvasElement, model: ClientModel, li
         const toLounge = a.status === "idle";
         const pool = toLounge ? slots.lounge : slots.desk;
         const idx = toLounge ? l++ : d++;
-        const target = pool[idx % pool.length].clone();
-        if (idx >= pool.length) target.y += Math.floor(idx / pool.length) * 1.4;
+        const slot = pool[idx % pool.length];
+        slotScratch.copy(slot);
+        if (idx >= pool.length) slotScratch.y += Math.floor(idx / pool.length) * 1.4;
         let v = views.get(a.id);
         if (!v) {
           v = new AgentView(a);
           views.set(a.id, v);
           stage.scene.add(v.object);
         }
-        v.update(a, target);
+        v.update(a, slotScratch);
         v.hidden = !tower.isVisible(team);
         seen.add(a.id);
       }
@@ -116,6 +118,7 @@ export function createLabScene(canvas: HTMLCanvasElement, model: ClientModel, li
     tower.setView(stage.camera.position, stage.controls.target);
     tower.tick(t);
     for (const v of views.values()) if (v.object.parent) v.tick(dt, t);
+    flushSynthBatches();
 
     // Adjust rain visibility based on weather
     if (!lightMode) {

@@ -97,10 +97,10 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   const poke = () => { activeUntil = performance.now() + 1500; };
   controls.addEventListener("start", poke);
   controls.addEventListener("change", poke);
-  canvas.addEventListener("pointermove", poke, { passive: true });
   canvas.addEventListener("wheel", poke, { passive: true });
 
   renderer.setAnimationLoop((now: number) => {
+    if (document.hidden) return;
     const fps = fly || now < activeUntil ? ACTIVE_FPS : IDLE_FPS;
     if (now - lastFrame < 1000 / fps - 2) return;
     lastFrame = now;

@@ -86,7 +86,7 @@ export function createAtmosphere(scene: THREE.Scene, renderer: THREE.WebGLRender
         vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
       }
-      float fbm(vec2 p){ float v = 0.0; float a = 0.5; for (int i = 0; i < 5; i++){ v += a * noise(p); p *= 2.03; a *= 0.5; } return v; }
+      float fbm(vec2 p){ float v = 0.0; float a = 0.55; for (int i = 0; i < 3; i++){ v += a * noise(p); p *= 2.03; a *= 0.5; } return v; }
       void main(){
         float h = clamp(vP.y, -0.1, 1.0);
         vec3 c = mix(horizon, top, smoothstep(0.0, 0.6, h));
@@ -102,7 +102,7 @@ export function createAtmosphere(scene: THREE.Scene, renderer: THREE.WebGLRender
         gl_FragColor = vec4(c, 1.0);
       }`,
   });
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 48, 24), skyMat);
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), skyMat);
   sky.renderOrder = -1;
   scene.add(sky);
 

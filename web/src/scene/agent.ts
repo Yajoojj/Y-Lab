@@ -218,6 +218,15 @@ class InstBatch {
 }
 
 let batches: { ring: InstBatch; shadow: InstBatch } | undefined;
+let batchDirty = false;
+
+/** Uma vez por quadro, depois que todos os agentes escreveram anel e sombra. */
+export function flushSynthBatches(): void {
+  if (!batches || !batchDirty) return;
+  batchDirty = false;
+  batches.ring.dirty();
+  batches.shadow.dirty();
+}
 
 /** cria (uma vez) os lotes de anel e sombra e coloca na cena */
 export function attachSynthBatches(scene: THREE.Scene, cap = 256): void {
@@ -343,6 +352,8 @@ export class AgentView {
   private glitchUntil = 0;
   private nextGlitch = 2 + Math.random() * 2;
   private blinkAt = 2 + Math.random() * 4;
+  /** agente fora do corte: para de animar e só zera o lote uma vez */
+  private parked = false;
 
   constructor(agent: Agent) {
     this.agent = agent;
@@ -432,6 +443,15 @@ export class AgentView {
   }
 
   tick(dt: number, t: number): void {
+    if (this.hidden) {
+      if (!this.parked) {
+        this.parked = true;
+        this.object.visible = false;
+        this.writeBatches(0);
+      }
+      return;
+    }
+    this.parked = false;
     const a = this.agent;
     this.object.position.lerp(this.target, 1 - Math.exp(-dt * 2.5));
     const ph = t + this.phase;
@@ -525,12 +545,11 @@ export class AgentView {
     if (this.ringIdx >= 0) {
       batches.ring.mesh.setMatrixAt(this.ringIdx, show ? this.ring.matrixWorld : ZERO);
       batches.ring.mesh.setColorAt(this.ringIdx, tmpColor.copy(this.tint).multiplyScalar(ringK));
-      batches.ring.dirty();
     }
     if (this.shadowIdx >= 0) {
       batches.shadow.mesh.setMatrixAt(this.shadowIdx, show ? this.shadow.matrixWorld : ZERO);
-      batches.shadow.dirty();
     }
+    batchDirty = true;
   }
 
   dispose(): void {

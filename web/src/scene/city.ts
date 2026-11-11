@@ -135,7 +135,7 @@ function facadeShader(opts: { lit: number; base: string; detail: number }): THRE
         float sky = clamp(vN.y, 0.0, 1.0);
         vec3 col = baseColor * (0.55 + 0.45 * sky) * (1.0 + dayFactor * 1.1);
         col += vec3(0.025, 0.012, 0.01) * (1.0 - vTop) * (1.0 - dayFactor);
-        if (abs(vN.y) < 0.5) {
+        if (detail > 0.65 && abs(vN.y) < 0.5) {
           float u = abs(vN.x) > 0.5 ? vWorld.z : vWorld.x;
           vec2 g = vec2(u / 1.1, vWorld.y / 1.45);
           vec2 cell = floor(g); vec2 f = fract(g);
@@ -315,11 +315,11 @@ function glyphTexture(seed: number, tint: string): THREE.CanvasTexture {
 export function createCity(scene: THREE.Scene): City {
   const mats: THREE.ShaderMaterial[] = [];
   // fundo: silhuetas altas e finas na neblina
-  mats.push(...buildingRing(scene, { count: 90, rMin: 170, rMax: 300, wMin: 8, wMax: 18, hMin: 30, hMax: 170, lit: 0.06, base: "#0b0b0e", detail: 0.6, seed: 11, lowSector: false }).mat);
+  mats.push(...buildingRing(scene, { count: 40, rMin: 170, rMax: 300, wMin: 8, wMax: 18, hMin: 30, hMax: 170, lit: 0.06, base: "#0b0b0e", detail: 0.6, seed: 11, lowSector: false }).mat);
   // meio: blocos simples
-  mats.push(...buildingRing(scene, { count: 90, rMin: 95, rMax: 170, wMin: 8, wMax: 16, hMin: 14, hMax: 95, lit: 0.1, base: "#111014", detail: 0.85, seed: 23, lowSector: true }).mat);
+  mats.push(...buildingRing(scene, { count: 60, rMin: 95, rMax: 170, wMin: 8, wMax: 16, hMin: 14, hMax: 95, lit: 0.1, base: "#111014", detail: 0.85, seed: 23, lowSector: true }).mat);
   // perto: torres com recuo e antena
-  mats.push(...buildingRing(scene, { count: 46, rMin: 50, rMax: 95, wMin: 9, wMax: 16, hMin: 10, hMax: 110, lit: 0.13, base: "#141317", detail: 1, seed: 37, lowSector: true, setbacks: true }).mat);
+  mats.push(...buildingRing(scene, { count: 36, rMin: 50, rMax: 95, wMin: 9, wMax: 16, hMin: 10, hMax: 110, lit: 0.13, base: "#141317", detail: 1, seed: 37, lowSector: true, setbacks: true }).mat);
 
   // chão: pedra e asfalto molhados (reflexo vem do environment)
   const ground = new THREE.Mesh(
@@ -387,8 +387,8 @@ export function createCity(scene: THREE.Scene): City {
   scene.add(deck, piers);
 
   const timed: THREE.ShaderMaterial[] = [
-    movingLights(scene, { count: 220, radius: R - 0.8, spread: 0.6, y: 9.6, ySpread: 0, speed: 0.05, color: "#ff2a3a", size: 2.6, intensity: 2.2, seed: 41, skipSector: true }),
-    movingLights(scene, { count: 220, radius: R + 0.8, spread: 0.6, y: 9.6, ySpread: 0, speed: -0.05, color: "#fff1dc", size: 2.6, intensity: 2.0, seed: 43, skipSector: true }),
+    movingLights(scene, { count: 120, radius: R - 0.8, spread: 0.6, y: 9.6, ySpread: 0, speed: 0.05, color: "#ff2a3a", size: 2.6, intensity: 2.2, seed: 41, skipSector: true }),
+    movingLights(scene, { count: 120, radius: R + 0.8, spread: 0.6, y: 9.6, ySpread: 0, speed: -0.05, color: "#fff1dc", size: 2.6, intensity: 2.0, seed: 43, skipSector: true }),
     // tráfego aéreo: poucos veículos altos, devagar, piscando lento
     movingLights(scene, { count: 40, radius: 150, spread: 90, y: 70, ySpread: 50, speed: 0.025, color: "#ede6dc", size: 3.2, intensity: 1.8, seed: 47, blink: true, ellipse: 0.7, skipSector: true }),
   ];

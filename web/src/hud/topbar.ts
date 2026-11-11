@@ -30,6 +30,7 @@ export function mountTopbar(root: HTMLElement, model: ClientModel, actions?: Hud
   const values = new Map<Status, HTMLElement>();
   for (const [st, label] of COUNTERS) {
     const c = h("span", `counter st-${st}`);
+    c.title = label;
     const b = h("b", "", "0");
     values.set(st, b);
     c.append(b, h("span", "", label));

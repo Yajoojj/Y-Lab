@@ -30,7 +30,7 @@ export function createPost(renderer: THREE.WebGLRenderer, scene: THREE.Scene, ca
   composer.addPass(new RenderPass(scene, camera));
 
   // bloom em meia resolução e com menos níveis: quase igual visualmente, bem mais barato
-  const bloom = new BloomEffect({ intensity: 0.85, luminanceThreshold: 0.95, luminanceSmoothing: 0.25, mipmapBlur: true, radius: 0.72, levels: 5, resolutionScale: 0.5 });
+  const bloom = new BloomEffect({ intensity: 0.7, luminanceThreshold: 0.95, luminanceSmoothing: 0.25, mipmapBlur: true, radius: 0.6, levels: 4, resolutionScale: 0.35 });
   const tone = new ToneMappingEffect({ mode: ToneMappingMode.AGX });
   const grade = new HueSaturationEffect({ saturation: -0.08 });
   const vignette = new VignetteEffect({ darkness: 0.42, offset: 0.38 });
